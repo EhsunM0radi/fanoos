@@ -54,6 +54,9 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private bool _autoScrollToBottom = true;
 
+    [ObservableProperty]
+    private string _theme = "Light"; // Light (Translucent), Dark
+
     // LLM Provider & Key
     [ObservableProperty]
     private string _llmProvider = "DeepSeek";
@@ -183,6 +186,7 @@ public partial class SettingsViewModel : ObservableObject
         OverlayFontSize = s.OverlayFontSize;
         AlwaysOnTop = s.AlwaysOnTop;
         AutoScrollToBottom = s.AutoScrollToBottom;
+        Theme = string.IsNullOrWhiteSpace(s.Theme) ? "Light" : s.Theme;
         SaveAudio = s.SaveAudio;
         SaveTranscript = s.SaveTranscript;
         SaveScreenshots = s.SaveScreenshots;
@@ -244,6 +248,7 @@ public partial class SettingsViewModel : ObservableObject
             OverlayFontSize = OverlayFontSize,
             AlwaysOnTop = AlwaysOnTop,
             AutoScrollToBottom = AutoScrollToBottom,
+            Theme = Theme,
             SaveAudio = SaveAudio,
             SaveTranscript = SaveTranscript,
             SaveScreenshots = SaveScreenshots,

@@ -63,6 +63,7 @@ export interface AppSettings {
   overlayFontSize: number;
   alwaysOnTop: boolean;
   autoScrollToBottom: boolean;
+  theme: 'light' | 'dark';
 
   // LLM Engine Settings (Sections 15-30)
   llmProvider: 'DeepSeek' | 'Gemini' | 'OpenAI' | 'OpenRouter';

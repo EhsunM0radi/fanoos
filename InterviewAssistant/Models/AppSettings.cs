@@ -24,6 +24,7 @@ public class AppSettings
     public double OverlayWidth { get; set; } = 420;
     public double OverlayHeight { get; set; } = 280;
     public bool AutoScrollToBottom { get; set; } = true;
+    public string Theme { get; set; } = "Light"; // Light (Translucent), Dark
 
     // LLM Provider & Config
     public LLMSettings LLMSettings { get; set; } = new();

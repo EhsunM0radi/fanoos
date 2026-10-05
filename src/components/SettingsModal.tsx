@@ -15,7 +15,9 @@ import {
   DollarSign,
   User,
   Clock,
-  RotateCcw
+  RotateCcw,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { AppSettings, LLMSessionMetrics } from '../types';
 
@@ -535,6 +537,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, autoScrollToBottom: e.target.checked })}
                   className="accent-blue-500 w-4 h-4 cursor-pointer"
                 />
+              </div>
+
+              {/* Theme & Appearance Selector */}
+              <div className="pt-3 border-t border-slate-800">
+                <label className="block text-slate-300 font-semibold mb-2">Theme &amp; Appearance (تم و ظاهر):</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, theme: 'light' })}
+                    className={`p-3 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
+                      formData.theme === 'light'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50 shadow-sm'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className="p-1.5 rounded-lg bg-amber-400/20 text-amber-400 mt-0.5">
+                      <Sun size={15} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold block text-slate-200">Light (Translucent)</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">روشن و شفاف (Mica Acrylic)</span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, theme: 'dark' })}
+                    className={`p-3 rounded-lg border text-left flex items-start gap-2.5 transition-all ${
+                      formData.theme === 'dark'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50 shadow-sm'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className="p-1.5 rounded-lg bg-indigo-400/20 text-indigo-400 mt-0.5">
+                      <Moon size={15} />
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold block text-slate-200">Dark (Slate)</span>
+                      <span className="text-[11px] text-slate-400 block mt-0.5">تاریک (Obsidian Mode)</span>
+                    </div>
+                  </button>
+                </div>
               </div>
             </div>
           )}

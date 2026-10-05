@@ -10,7 +10,9 @@ import {
   ExternalLink,
   Sliders,
   Volume2,
-  Download
+  Download,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { 
   TranscriptEvent, 
@@ -44,11 +46,12 @@ const DEFAULT_SETTINGS: AppSettings = {
   selectedDeviceId: 'default',
   captureMode: 'Microphone',
 
-  // Overlay
+  // Overlay & Appearance (Default: Light & Translucent as requested)
   overlayOpacity: 0.88,
   overlayFontSize: 15,
   alwaysOnTop: true,
   autoScrollToBottom: true,
+  theme: 'light',
 
   // LLM Engine
   llmProvider: 'DeepSeek',
@@ -102,7 +105,11 @@ export default function App() {
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const saved = localStorage.getItem('interview_assistant_settings');
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_SETTINGS, ...parsed, theme: parsed.theme || 'light' };
+      }
+      return DEFAULT_SETTINGS;
     } catch {
       return DEFAULT_SETTINGS;
     }
@@ -120,6 +127,8 @@ export default function App() {
 
   // LLM Metrics state for UI
   const [metrics, setMetrics] = useState<LLMSessionMetrics>(llmSchedulerRef.current.metrics);
+
+  const isLight = settings.theme === 'light';
 
   // Initialize Audio, Store, Scheduler & Enumerate Devices
   useEffect(() => {
@@ -195,6 +204,14 @@ export default function App() {
     } catch (e) {
       console.error('Failed to save settings:', e);
     }
+  };
+
+  // Toggle Theme
+  const handleToggleTheme = () => {
+    saveSettings({
+      ...settings,
+      theme: settings.theme === 'dark' ? 'light' : 'dark',
+    });
   };
 
   // Download transcript handler
@@ -300,11 +317,8 @@ export default function App() {
 
     const store = transcriptStoreRef.current;
 
-    // Simulate Part 1: First sentence
     const part1Words = ["I've", "been", "working", "with", "distributed", "systems", "and", ".NET", "for", "several", "years."];
-    // Simulate Part 2: Consecutive sentence within 1.5 seconds (automatically groups into the same paragraph)
     const part2Words = ["Recently,", "I", "focused", "heavily", "on", "low-latency", "WebSocket", "speech", "streaming", "and", "MVVM", "architecture."];
-    // Simulate Part 3: Interviewer question
     const questionWords = ["Can", "you", "explain", "how", "you", "minimize", "audio", "buffer", "latency", "in", "Windows?"];
 
     const runStreamWords = (words: string[], delayBetweenWords: number, onComplete: () => void) => {
@@ -334,12 +348,9 @@ export default function App() {
       simulationTimersRef.current.push(interval);
     };
 
-    // Step 1: Speak Part 1
     runStreamWords(part1Words, 140, () => {
-      // Step 2: 1.2s pause (well within 4s window), Speak Part 2 -> Auto-grouped into paragraph!
       const t1 = window.setTimeout(() => {
         runStreamWords(part2Words, 140, () => {
-          // Step 3: 2s pause, Interviewer speaks question
           const t2 = window.setTimeout(() => {
             runStreamWords(questionWords, 150, () => {
               setIsSimulating(false);
@@ -367,34 +378,54 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <div className={`min-h-screen flex flex-col font-sans selection:bg-blue-600 selection:text-white transition-colors duration-200 relative ${
+      isLight
+        ? 'bg-slate-100 text-slate-800 bg-gradient-to-br from-slate-100 via-sky-50/50 to-indigo-50/30'
+        : 'bg-slate-950 text-slate-100'
+    }`}>
       {/* Toast Notification */}
       {downloadNotification && (
-        <div className="fixed top-16 right-6 z-50 px-4 py-2.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-200 text-xs font-medium shadow-xl flex items-center gap-2 animate-bounce">
-          <Download size={14} className="text-emerald-400" />
+        <div className={`fixed top-16 right-6 z-50 px-4 py-2.5 rounded-lg border text-xs font-medium shadow-xl flex items-center gap-2 animate-bounce ${
+          isLight
+            ? 'bg-emerald-100 border-emerald-300 text-emerald-900'
+            : 'bg-emerald-950 border-emerald-800 text-emerald-200'
+        }`}>
+          <Download size={14} className={isLight ? 'text-emerald-700' : 'text-emerald-400'} />
           <span>{downloadNotification}</span>
         </div>
       )}
 
       {/* Top Navigation Bar */}
-      <header className="px-6 py-3.5 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
+      <header className={`px-6 py-3.5 border-b flex items-center justify-between sticky top-0 z-40 backdrop-blur-md transition-colors ${
+        isLight
+          ? 'bg-white/75 border-slate-200/80 text-slate-800 shadow-sm'
+          : 'bg-slate-950/90 border-slate-800/80 text-slate-100'
+      }`}>
         <div className="flex items-center gap-3">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs shadow-md shadow-blue-500/20">
             MAUI
           </div>
           <div>
-            <span className="text-sm font-bold text-white tracking-tight">AI Interview Assistant</span>
-            <span className="hidden sm:inline-block ml-2 text-xs text-slate-400">· Windows-First STT Overlay</span>
+            <span className={`text-sm font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              AI Interview Assistant
+            </span>
+            <span className={`hidden sm:inline-block ml-2 text-xs ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+              · Windows-First STT Overlay (شفاف و روشن)
+            </span>
           </div>
         </div>
 
         {/* View Switcher Tabs */}
-        <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800 text-xs">
+        <div className={`flex items-center gap-1 p-1 rounded-lg border text-xs ${
+          isLight ? 'bg-slate-100/90 border-slate-200 shadow-inner' : 'bg-slate-900/80 border-slate-800'
+        }`}>
           <button
             onClick={() => setActiveView('assistant')}
             className={`px-3 py-1.5 font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               activeView === 'assistant'
                 ? 'bg-blue-600 text-white shadow-sm'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -407,6 +438,8 @@ export default function App() {
             className={`px-3 py-1.5 font-medium rounded-md transition-colors flex items-center gap-1.5 ${
               activeView === 'code'
                 ? 'bg-blue-600 text-white shadow-sm'
+                : isLight
+                ? 'text-slate-600 hover:text-slate-900'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -415,12 +448,16 @@ export default function App() {
           </button>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions & Theme Switcher */}
         <div className="flex items-center gap-2">
           {paragraphs.length > 0 && (
             <button
               onClick={handleDownloadTranscript}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 transition-colors"
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 transition-colors border ${
+                isLight
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300'
+                  : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40'
+              }`}
               title="Download Transcript to text file"
             >
               <Download size={13} />
@@ -428,9 +465,26 @@ export default function App() {
             </button>
           )}
 
+          {/* Quick Theme Toggle Button */}
+          <button
+            onClick={handleToggleTheme}
+            className={`p-2 rounded-lg transition-colors border ${
+              isLight
+                ? 'bg-white hover:bg-slate-100 text-amber-600 border-slate-200 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-slate-800'
+            }`}
+            title={isLight ? 'Switch to Dark Mode (تغییر به تم تاریک)' : 'Switch to Light Translucent Mode (تغییر به تم روشن و شفاف)'}
+          >
+            {isLight ? <Moon size={16} /> : <Sun size={16} />}
+          </button>
+
           <button
             onClick={() => setIsSettingsOpen(true)}
-            className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 rounded-lg transition-colors"
+            className={`p-2 rounded-lg transition-colors border ${
+              isLight
+                ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border-slate-800'
+            }`}
             title="Settings"
           >
             <SettingsIcon size={16} />
@@ -467,14 +521,20 @@ export default function App() {
             />
 
             {/* Architecture Flow Explanation Banner */}
-            <div className="w-full max-w-3xl p-4 rounded-xl bg-slate-900/50 border border-slate-800/80 text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2 text-slate-300">
-                <span className="font-mono text-purple-400 font-bold">Pipeline:</span>
+            <div className={`w-full max-w-3xl p-4 rounded-xl border text-xs flex flex-col sm:flex-row items-center justify-between gap-4 transition-all ${
+              isLight
+                ? 'bg-white/70 backdrop-blur-md border-slate-200/80 text-slate-600 shadow-sm'
+                : 'bg-slate-900/50 border-slate-800/80 text-slate-400'
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className={`font-mono font-bold ${isLight ? 'text-purple-600' : 'text-purple-400'}`}>Pipeline:</span>
                 <span>Microphone (16kHz PCM) → Deepgram Nova-3 (WebSocket) → Auto-Grouped Paragraphs → Overlay &amp; LLM Copilot</span>
               </div>
               <button
                 onClick={() => setActiveView('code')}
-                className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium whitespace-nowrap"
+                className={`flex items-center gap-1 font-medium whitespace-nowrap ${
+                  isLight ? 'text-blue-600 hover:text-blue-800' : 'text-blue-400 hover:text-blue-300'
+                }`}
               >
                 <span>Inspect C# Implementation</span>
                 <ExternalLink size={12} />
@@ -482,7 +542,7 @@ export default function App() {
             </div>
           </div>
         ) : (
-          <MauiCodeExplorer />
+          <MauiCodeExplorer theme={settings.theme} />
         )}
 
         {/* Floating Always-On-Top Overlay Window */}
@@ -506,6 +566,8 @@ export default function App() {
           onDownloadTranscript={handleDownloadTranscript}
           autoScrollToBottom={settings.autoScrollToBottom !== false}
           onToggleAutoScroll={handleToggleAutoScroll}
+          theme={settings.theme}
+          onToggleTheme={handleToggleTheme}
         />
       </main>
 

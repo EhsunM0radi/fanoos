@@ -63,15 +63,25 @@ export const MainWindow: React.FC<MainWindowProps> = ({
   autoScrollToBottom,
   onToggleAutoScroll,
 }) => {
+  const isLight = settings.theme === 'light';
+
   return (
-    <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden text-slate-100 flex flex-col">
+    <div className={`w-full max-w-3xl rounded-xl shadow-2xl overflow-hidden flex flex-col backdrop-blur-2xl transition-all ${
+      isLight
+        ? 'bg-white/80 border border-white/90 text-slate-800 shadow-slate-300/50 ring-1 ring-slate-900/5'
+        : 'bg-slate-900 border border-slate-800 text-slate-100'
+    }`}>
       {/* Native Windows Title Bar Simulation */}
-      <div className="px-4 py-2.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+      <div className={`px-4 py-2.5 border-b flex items-center justify-between ${
+        isLight
+          ? 'bg-slate-50/80 border-slate-200/80'
+          : 'bg-slate-950/80 border-slate-800'
+      }`}>
         <div className="flex items-center gap-2.5">
           <div className="w-4 h-4 rounded bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
             AI
           </div>
-          <span className="text-xs font-semibold text-slate-300 tracking-wide">
+          <span className={`text-xs font-semibold tracking-wide ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
             AI Interview Assistant (.NET MAUI &amp; Nova-3)
           </span>
         </div>
@@ -79,15 +89,23 @@ export const MainWindow: React.FC<MainWindowProps> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onOpenCodeExplorer}
-            className="text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 px-2 py-1 rounded flex items-center gap-1.5 transition-colors"
+            className={`text-xs px-2 py-1 rounded flex items-center gap-1.5 transition-colors ${
+              isLight
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
           >
-            <Terminal size={12} className="text-blue-400" />
+            <Terminal size={12} className="text-blue-500" />
             <span>.NET Source Files</span>
           </button>
 
           <button
             onClick={onOpenSettings}
-            className="text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800 p-1.5 rounded transition-colors"
+            className={`text-xs p-1.5 rounded transition-colors ${
+              isLight
+                ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/70'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
             title="Settings"
           >
             <SettingsIcon size={14} />
@@ -98,16 +116,24 @@ export const MainWindow: React.FC<MainWindowProps> = ({
       {/* Main Body */}
       <div className="p-6 space-y-6">
         {/* Header & Status Indicator */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b ${
+          isLight ? 'border-slate-200' : 'border-slate-800'
+        }`}>
           <div>
-            <h1 className="text-2xl font-bold text-white tracking-tight">AI Interview Assistant</h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <h1 className={`text-2xl font-bold tracking-tight ${isLight ? 'text-slate-900' : 'text-white'}`}>
+              AI Interview Assistant
+            </h1>
+            <p className={`text-xs mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
               Low-latency real-time speech streaming with floating overlay &amp; copilot
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-800 text-xs">
+            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs ${
+              isLight
+                ? 'bg-white border-slate-200 shadow-sm'
+                : 'bg-slate-950 border-slate-800'
+            }`}>
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
                   status === 'connected'
@@ -116,10 +142,10 @@ export const MainWindow: React.FC<MainWindowProps> = ({
                     ? 'bg-amber-400 animate-pulse'
                     : status === 'error'
                     ? 'bg-red-500'
-                    : 'bg-slate-500'
+                    : 'bg-slate-400'
                 }`}
               />
-              <span className="font-semibold capitalize text-slate-300">
+              <span className={`font-semibold capitalize ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
                 {status === 'connected' ? '● Connected / Listening' : status === 'connecting' ? '● Connecting...' : status === 'error' ? '● Error' : '○ Stopped'}
               </span>
             </div>
@@ -129,11 +155,15 @@ export const MainWindow: React.FC<MainWindowProps> = ({
               title={autoScrollToBottom ? 'Auto-scroll is ON: locked to latest speech' : 'Auto-scroll is OFF: review freely'}
               className={`px-2.5 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-all border ${
                 autoScrollToBottom
-                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/50'
+                  ? isLight
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm'
+                    : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/50'
+                  : isLight
+                  ? 'bg-slate-100 text-slate-600 border-slate-200 hover:text-slate-900'
                   : 'bg-slate-800/50 text-slate-400 border-slate-700/60 hover:text-slate-200'
               }`}
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${autoScrollToBottom ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span className={`w-1.5 h-1.5 rounded-full ${autoScrollToBottom ? 'bg-emerald-500' : 'bg-slate-400'}`} />
               <span>{autoScrollToBottom ? 'Auto-scroll ON' : 'Auto-scroll OFF'}</span>
             </button>
 
@@ -141,7 +171,11 @@ export const MainWindow: React.FC<MainWindowProps> = ({
               onClick={onToggleOverlay}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-all ${
                 isOverlayOpen
-                  ? 'bg-purple-600/30 text-purple-200 border border-purple-500/50 shadow-sm'
+                  ? isLight
+                    ? 'bg-purple-100 text-purple-800 border border-purple-300 shadow-sm'
+                    : 'bg-purple-600/30 text-purple-200 border border-purple-500/50 shadow-sm'
+                  : isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
               }`}
             >
@@ -154,57 +188,73 @@ export const MainWindow: React.FC<MainWindowProps> = ({
         {/* Configuration Sections Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Speech Engine Configuration Card */}
-          <div className="p-4 rounded-lg bg-slate-950/60 border border-slate-800/80 space-y-3">
+          <div className={`p-4 rounded-lg border space-y-3 ${
+            isLight
+              ? 'bg-white/85 border-slate-200/80 shadow-sm'
+              : 'bg-slate-950/60 border-slate-800/80'
+          }`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-blue-400 text-xs font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-blue-600 text-xs font-bold uppercase tracking-wider">
                 <Radio size={14} />
                 <span>Speech Provider</span>
               </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-mono">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                isLight ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-blue-950 text-blue-300'
+              }`}>
                 Real-Time STT
               </span>
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between py-1 border-b border-slate-800/50">
-                <span className="text-slate-400">Provider:</span>
-                <span className="font-semibold text-slate-200">{settings.provider}</span>
+              <div className={`flex items-center justify-between py-1 border-b ${isLight ? 'border-slate-100' : 'border-slate-800/50'}`}>
+                <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>Provider:</span>
+                <span className={`font-semibold ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{settings.provider}</span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800/50">
-                <span className="text-slate-400">Model:</span>
-                <span className="font-mono text-purple-300 font-medium">Nova-3 (English)</span>
+              <div className={`flex items-center justify-between py-1 border-b ${isLight ? 'border-slate-100' : 'border-slate-800/50'}`}>
+                <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>Model:</span>
+                <span className={`font-mono font-medium ${isLight ? 'text-purple-700' : 'text-purple-300'}`}>Nova-3 (English)</span>
               </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-800/50">
-                <span className="text-slate-400">Interim Results:</span>
-                <span className="text-emerald-400 font-medium">Enabled (Instant)</span>
+              <div className={`flex items-center justify-between py-1 border-b ${isLight ? 'border-slate-100' : 'border-slate-800/50'}`}>
+                <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>Interim Results:</span>
+                <span className="text-emerald-600 font-medium">Enabled (Instant)</span>
               </div>
               <div className="flex items-center justify-between py-1">
-                <span className="text-slate-400">Smart Formatting:</span>
-                <span className="text-slate-300">Enabled</span>
+                <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>Smart Formatting:</span>
+                <span className={isLight ? 'text-slate-700' : 'text-slate-300'}>Enabled</span>
               </div>
             </div>
           </div>
 
           {/* Audio Input Configuration Card */}
-          <div className="p-4 rounded-lg bg-slate-950/60 border border-slate-800/80 space-y-3">
+          <div className={`p-4 rounded-lg border space-y-3 ${
+            isLight
+              ? 'bg-white/85 border-slate-200/80 shadow-sm'
+              : 'bg-slate-950/60 border-slate-800/80'
+          }`}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+              <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
                 <Mic size={14} />
                 <span>Audio Capture</span>
               </div>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 font-mono">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                isLight ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-emerald-950 text-emerald-300'
+              }`}>
                 16kHz PCM
               </span>
             </div>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-slate-400 block mb-1">Microphone Input:</label>
+                <label className={`block mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Microphone Input:</label>
                 <select
                   value={selectedDeviceId}
                   onChange={(e) => onSelectDevice(e.target.value)}
                   disabled={isInterviewActive}
-                  className="w-full bg-slate-900 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 disabled:opacity-60"
+                  className={`w-full rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-60 border ${
+                    isLight
+                      ? 'bg-slate-50 border-slate-300 text-slate-800'
+                      : 'bg-slate-900 border-slate-800 text-slate-200'
+                  }`}
                 >
                   <option value="default">Default System Microphone</option>
                   {audioDevices.map((d) => (
@@ -215,21 +265,21 @@ export const MainWindow: React.FC<MainWindowProps> = ({
                 </select>
               </div>
 
-              <div className="flex items-center justify-between py-1 border-b border-slate-800/50">
-                <span className="text-slate-400">Capture Mode:</span>
-                <span className="text-slate-200 font-medium">{settings.captureMode}</span>
+              <div className={`flex items-center justify-between py-1 border-b ${isLight ? 'border-slate-100' : 'border-slate-800/50'}`}>
+                <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>Capture Mode:</span>
+                <span className={`font-medium ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{settings.captureMode}</span>
               </div>
 
               {/* Real-time Audio Level Bar */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px] text-slate-400">
+                <div className={`flex items-center justify-between text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
                   <span>Input Signal:</span>
-                  <span className="font-mono text-slate-500">{isInterviewActive ? `${audioVolume}%` : 'Off'}</span>
+                  <span className="font-mono">{isInterviewActive ? `${audioVolume}%` : 'Off'}</span>
                 </div>
-                <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
                   <div
                     className={`h-full transition-all duration-75 ${
-                      audioVolume > 70 ? 'bg-amber-400' : 'bg-emerald-500'
+                      audioVolume > 70 ? 'bg-amber-500' : 'bg-emerald-500'
                     }`}
                     style={{ width: `${isInterviewActive ? audioVolume : 0}%` }}
                   />
@@ -264,10 +314,14 @@ export const MainWindow: React.FC<MainWindowProps> = ({
             <button
               onClick={onSimulateSpeech}
               disabled={isSimulating}
-              className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-750 text-slate-200 text-xs font-medium rounded-lg flex items-center gap-1.5 border border-slate-700 transition-all disabled:opacity-50"
+              className={`px-3.5 py-2.5 text-xs font-medium rounded-lg flex items-center gap-1.5 border transition-all disabled:opacity-50 ${
+                isLight
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
               title="Test realistic interview speech without audio input"
             >
-              <Sparkles size={13} className="text-amber-400" />
+              <Sparkles size={13} className="text-amber-500" />
               <span>{isSimulating ? 'Simulating...' : 'Test Speech Sample'}</span>
             </button>
 
@@ -277,12 +331,16 @@ export const MainWindow: React.FC<MainWindowProps> = ({
               disabled={!hasTranscripts}
               className={`px-3.5 py-2.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 border transition-all ${
                 hasTranscripts
-                  ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-950 cursor-pointer'
+                  ? isLight
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-300 shadow-sm cursor-pointer'
+                    : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 shadow-sm cursor-pointer'
+                  : isLight
+                  ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
                   : 'bg-slate-800/40 text-slate-500 border-slate-800 cursor-not-allowed opacity-60'
               }`}
               title={hasTranscripts ? `Export session transcript (${paragraphCount} paragraphs)` : 'No transcript recorded yet'}
             >
-              <Download size={13} className={hasTranscripts ? 'text-emerald-400' : 'text-slate-500'} />
+              <Download size={13} className={hasTranscripts ? 'text-emerald-600' : 'text-slate-400'} />
               <span>
                 Download Transcript
                 {hasTranscripts && <span className="ml-1 text-[11px] opacity-80">({paragraphCount})</span>}
@@ -290,8 +348,8 @@ export const MainWindow: React.FC<MainWindowProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <ShieldCheck size={14} className="text-emerald-500/80" />
+          <div className={`flex items-center gap-2 text-xs ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
+            <ShieldCheck size={14} className="text-emerald-500" />
             <span>Privacy Active: No audio or transcripts saved to disk</span>
           </div>
         </div>
