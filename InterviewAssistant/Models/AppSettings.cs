@@ -23,10 +23,12 @@ public class AppSettings
     public double OverlayY { get; set; } = 100;
     public double OverlayWidth { get; set; } = 420;
     public double OverlayHeight { get; set; } = 280;
+    public bool AutoScrollToBottom { get; set; } = true;
 
-    // LLM Provider
-    public string LLMProvider { get; set; } = "Gemini";
-    public string LLMModel { get; set; } = "gemini-3.8-flash";
+    // LLM Provider & Config
+    public LLMSettings LLMSettings { get; set; } = new();
+    public string LLMProvider { get; set; } = "DeepSeek";
+    public string LLMModel { get; set; } = "deepseek-chat";
     public bool AutoCopilotAnswer { get; set; } = true;
 
     // Privacy Defaults

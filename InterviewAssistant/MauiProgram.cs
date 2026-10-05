@@ -38,6 +38,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<ISpeechProvider, DeepgramSpeechProvider>();
         builder.Services.AddSingleton<IOverlayWindowService, OverlayWindowService>();
         builder.Services.AddSingleton<ILLMProvider, GeminiLLMProvider>();
+        builder.Services.AddSingleton<ILLMRequestScheduler, LLMRequestScheduler>();
         builder.Services.AddSingleton<IVisionProvider, WindowsVisionProvider>();
 
         // ViewModels

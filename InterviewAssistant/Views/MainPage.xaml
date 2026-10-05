@@ -104,7 +104,20 @@
                         FontAttributes="Bold"
                         CornerRadius="6"
                         Padding="24,12" />
+
+                <Button Text="Download Transcript"
+                        Command="{Binding DownloadTranscriptCommand}"
+                        IsEnabled="{Binding HasTranscripts}"
+                        BackgroundColor="#1E293B"
+                        TextColor="#F8FAFC"
+                        CornerRadius="6"
+                        Padding="20,12" />
             </HorizontalStackLayout>
+
+            <Label Text="{Binding ExportMessage}"
+                   IsVisible="{Binding ExportMessage, Converter={StaticResource StringNotEmptyConverter}}"
+                   TextColor="#38BDF8"
+                   FontSize="12" />
 
         </VerticalStackLayout>
     </ScrollView>

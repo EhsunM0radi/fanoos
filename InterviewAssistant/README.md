@@ -5,7 +5,8 @@ A Windows-first AI Interview Assistant using **.NET 8 MAUI**, **Deepgram Nova-3 
 ## Architecture Highlights
 - **Audio Capture (`IAudioCapture`)**: 16 kHz, 16-bit Mono Linear PCM streaming chunks (~100ms) with zero disk I/O and non-blocking asynchronous dispatch.
 - **Speech-to-Text (`ISpeechProvider`)**: High-performance persistent `ClientWebSocket` to Deepgram Nova-3 (`wss://api.deepgram.com/v1/listen`), yielding live interim words and final sentence commits.
-- **Transcript State (`ITranscriptStore`)**: In-memory, thread-safe store maintaining reactive `CurrentInterim` and `FinalSegments[]`.
+- **Transcript State (`ITranscriptStore`)**: In-memory, thread-safe store maintaining reactive `CurrentInterim`, `FinalSegments[]`, and **automatically grouped paragraphs** (`GroupedParagraphs`) merging consecutive final segments within a 4-second window.
+- **Download Transcript**: Instant session export to clean timestamped text file (`ExportTranscriptText()`).
 - **Floating Overlay (`OverlayWindowService`)**: WinUI 3 AppWindow integration with `IsAlwaysOnTop = true`, adjustable opacity, dynamic font size, minimal dark aesthetic, and persistent window coordinates.
 - **AI Copilot (`ILLMProvider`)**: Real-time question detection triggering streaming interview assistance (STAR structured points).
 - **Vision Abstraction (`IVisionProvider`)**: One-time layout analyzer for optimal unobtrusive overlay positioning.

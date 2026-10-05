@@ -12,7 +12,9 @@ import {
   ShieldCheck, 
   Cpu, 
   Terminal,
-  ExternalLink
+  ExternalLink,
+  Download,
+  FileText
 } from 'lucide-react';
 import { AppSettings, ConnectionState, AudioDevice } from '../types';
 
@@ -32,6 +34,11 @@ interface MainWindowProps {
   onSimulateSpeech: () => void;
   isSimulating: boolean;
   onOpenCodeExplorer: () => void;
+  onDownloadTranscript: () => void;
+  hasTranscripts: boolean;
+  paragraphCount: number;
+  autoScrollToBottom: boolean;
+  onToggleAutoScroll: () => void;
 }
 
 export const MainWindow: React.FC<MainWindowProps> = ({
@@ -50,6 +57,11 @@ export const MainWindow: React.FC<MainWindowProps> = ({
   onSimulateSpeech,
   isSimulating,
   onOpenCodeExplorer,
+  onDownloadTranscript,
+  hasTranscripts,
+  paragraphCount,
+  autoScrollToBottom,
+  onToggleAutoScroll,
 }) => {
   return (
     <div className="w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden text-slate-100 flex flex-col">
@@ -111,6 +123,19 @@ export const MainWindow: React.FC<MainWindowProps> = ({
                 {status === 'connected' ? '● Connected / Listening' : status === 'connecting' ? '● Connecting...' : status === 'error' ? '● Error' : '○ Stopped'}
               </span>
             </div>
+
+            <button
+              onClick={onToggleAutoScroll}
+              title={autoScrollToBottom ? 'Auto-scroll is ON: locked to latest speech' : 'Auto-scroll is OFF: review freely'}
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-lg flex items-center gap-1.5 transition-all border ${
+                autoScrollToBottom
+                  ? 'bg-emerald-950/40 text-emerald-300 border-emerald-800/50'
+                  : 'bg-slate-800/50 text-slate-400 border-slate-700/60 hover:text-slate-200'
+              }`}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${autoScrollToBottom ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`} />
+              <span>{autoScrollToBottom ? 'Auto-scroll ON' : 'Auto-scroll OFF'}</span>
+            </button>
 
             <button
               onClick={onToggleOverlay}
@@ -243,7 +268,25 @@ export const MainWindow: React.FC<MainWindowProps> = ({
               title="Test realistic interview speech without audio input"
             >
               <Sparkles size={13} className="text-amber-400" />
-              <span>{isSimulating ? 'Simulating Interview...' : 'Test Speech Sample'}</span>
+              <span>{isSimulating ? 'Simulating...' : 'Test Speech Sample'}</span>
+            </button>
+
+            {/* Download Transcript Button */}
+            <button
+              onClick={onDownloadTranscript}
+              disabled={!hasTranscripts}
+              className={`px-3.5 py-2.5 text-xs font-semibold rounded-lg flex items-center gap-1.5 border transition-all ${
+                hasTranscripts
+                  ? 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-950 cursor-pointer'
+                  : 'bg-slate-800/40 text-slate-500 border-slate-800 cursor-not-allowed opacity-60'
+              }`}
+              title={hasTranscripts ? `Export session transcript (${paragraphCount} paragraphs)` : 'No transcript recorded yet'}
+            >
+              <Download size={13} className={hasTranscripts ? 'text-emerald-400' : 'text-slate-500'} />
+              <span>
+                Download Transcript
+                {hasTranscripts && <span className="ml-1 text-[11px] opacity-80">({paragraphCount})</span>}
+              </span>
             </button>
           </div>
 

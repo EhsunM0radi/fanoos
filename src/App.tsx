@@ -9,23 +9,29 @@ import {
   Sparkles, 
   ExternalLink,
   Sliders,
-  Volume2
+  Volume2,
+  Download
 } from 'lucide-react';
 import { 
   TranscriptEvent, 
+  TranscriptParagraph,
   AppSettings, 
   ConnectionState, 
   AudioDevice, 
-  CopilotAnswer 
+  CopilotAnswer,
+  LLMSessionMetrics
 } from './types';
 import { BrowserAudioCapture } from './services/audioCapture';
 import { DeepgramLiveClient } from './services/deepgramLive';
+import { ReactiveTranscriptStore } from './services/transcriptStore';
+import { ClientLLMRequestScheduler } from './services/llmScheduler';
 import { MainWindow } from './components/MainWindow';
 import { FloatingOverlay } from './components/FloatingOverlay';
 import { SettingsModal } from './components/SettingsModal';
 import { MauiCodeExplorer } from './components/MauiCodeExplorer';
 
 const DEFAULT_SETTINGS: AppSettings = {
+  // STT
   deepgramApiKey: '',
   provider: 'Deepgram',
   model: 'nova-3',
@@ -33,11 +39,45 @@ const DEFAULT_SETTINGS: AppSettings = {
   interimResults: true,
   smartFormatting: true,
   endpointingMs: 300,
+
+  // Audio
   selectedDeviceId: 'default',
   captureMode: 'Microphone',
+
+  // Overlay
   overlayOpacity: 0.88,
   overlayFontSize: 15,
   alwaysOnTop: true,
+  autoScrollToBottom: true,
+
+  // LLM Engine
+  llmProvider: 'DeepSeek',
+  llmModel: 'deepseek-chat',
+  llmApiKey: '',
+  llmTriggerMode: 'Automatic',
+  llmDebounceMs: 500,
+  llmMinTriggerLength: 20,
+  llmMaxRequestsPerMinute: 10,
+  llmMinTimeBetweenRequestsMs: 2000,
+  llmMaxConcurrentRequests: 1,
+  llmMaxContextTokens: 2000,
+  llmMaxOutputTokens: 150,
+  llmTemperature: 0.3,
+  llmAnswerStyle: 'Natural',
+
+  // Candidate Profile
+  candidateName: '',
+  candidateRole: 'Senior Backend Engineer',
+  candidateExperience: 'Senior Software Engineer (5+ years)',
+  candidateSkills: '.NET, C#, Distributed Systems, WebSockets, Azure',
+  candidateProjects: 'Low-latency streaming architecture, real-time audio pipeline',
+
+  // Cost Controls
+  llmMaxSessionRequests: 50,
+  llmStopWhenLimitReached: false,
+  llmMaxEstimatedCostUsd: 1.00,
+
+  // Privacy
   saveAudio: false,
   saveTranscript: false,
   saveScreenshots: false,
@@ -50,11 +90,13 @@ export default function App() {
   const [status, setStatus] = useState<ConnectionState>('disconnected');
   const [currentInterim, setCurrentInterim] = useState('');
   const [finalTranscripts, setFinalTranscripts] = useState<TranscriptEvent[]>([]);
+  const [paragraphs, setParagraphs] = useState<TranscriptParagraph[]>([]);
   const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null);
   const [audioVolume, setAudioVolume] = useState(0);
   const [isOverlayOpen, setIsOverlayOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [downloadNotification, setDownloadNotification] = useState<string | null>(null);
 
   // Settings State with LocalStorage Persistence
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -72,15 +114,34 @@ export default function App() {
   // Services References
   const audioCaptureRef = useRef<BrowserAudioCapture | null>(null);
   const deepgramClientRef = useRef<DeepgramLiveClient | null>(null);
-  const simulationTimerRef = useRef<number | null>(null);
+  const transcriptStoreRef = useRef<ReactiveTranscriptStore>(new ReactiveTranscriptStore());
+  const llmSchedulerRef = useRef<ClientLLMRequestScheduler>(new ClientLLMRequestScheduler());
+  const simulationTimersRef = useRef<number[]>([]);
 
-  // Initialize Audio & Enumerate Devices
+  // LLM Metrics state for UI
+  const [metrics, setMetrics] = useState<LLMSessionMetrics>(llmSchedulerRef.current.metrics);
+
+  // Initialize Audio, Store, Scheduler & Enumerate Devices
   useEffect(() => {
     const audioCapture = new BrowserAudioCapture();
     const deepgramClient = new DeepgramLiveClient();
+    const store = transcriptStoreRef.current;
+    const scheduler = llmSchedulerRef.current;
 
     audioCaptureRef.current = audioCapture;
     deepgramClientRef.current = deepgramClient;
+
+    // Subscribe to reactive store changes (automatic paragraph grouping)
+    const unsubscribeStore = store.subscribe(() => {
+      setCurrentInterim(store.getInterim());
+      setFinalTranscripts(store.getFinalSegments());
+      setParagraphs(store.getParagraphs());
+    });
+
+    // Subscribe to LLM Scheduler metrics
+    const unsubscribeScheduler = scheduler.subscribe(() => {
+      setMetrics({ ...scheduler.metrics });
+    });
 
     // Hook up audio chunk forwarder to Deepgram WebSocket
     audioCapture.onChunk((chunk) => {
@@ -92,14 +153,13 @@ export default function App() {
       setAudioVolume(vol);
     });
 
-    // Hook up Deepgram transcripts
+    // Hook up Deepgram transcripts into reactive store & scheduler
     deepgramClient.onTranscript((evt) => {
       if (evt.isFinal || evt.speechFinal) {
-        setCurrentInterim('');
-        setFinalTranscripts((prev) => [...prev, evt]);
+        store.addFinal(evt);
         checkForQuestionAndTriggerCopilot(evt.text);
       } else {
-        setCurrentInterim(evt.text);
+        store.updateInterim(evt.text);
       }
     });
 
@@ -121,7 +181,10 @@ export default function App() {
     return () => {
       audioCapture.stop();
       deepgramClient.disconnect();
-      if (simulationTimerRef.current) clearInterval(simulationTimerRef.current);
+      unsubscribeStore();
+      unsubscribeScheduler();
+      simulationTimersRef.current.forEach((t) => clearTimeout(t));
+      scheduler.cancelActive();
     };
   }, []);
 
@@ -134,7 +197,24 @@ export default function App() {
     }
   };
 
-  // Question Detector & Copilot Trigger
+  // Download transcript handler
+  const handleDownloadTranscript = () => {
+    const success = transcriptStoreRef.current.downloadTranscript();
+    if (success) {
+      setDownloadNotification('Transcript exported successfully as .txt file');
+      setTimeout(() => setDownloadNotification(null), 3500);
+    }
+  };
+
+  // Toggle Auto-scroll
+  const handleToggleAutoScroll = () => {
+    saveSettings({
+      ...settings,
+      autoScrollToBottom: settings.autoScrollToBottom === false,
+    });
+  };
+
+  // Question Detector & Copilot Trigger (Enforces LLM Scheduler - Section 13 & 14)
   const checkForQuestionAndTriggerCopilot = (text: string) => {
     const clean = text.trim();
     const isQuestion = 
@@ -146,79 +226,22 @@ export default function App() {
       clean.toLowerCase().includes('walk me through');
 
     if (isQuestion) {
-      handleTriggerCopilot(clean);
+      handleTriggerCopilot(clean, 'QuestionDetection');
     }
   };
 
-  const handleTriggerCopilot = async (question: string) => {
-    const answerId = Date.now().toString();
-    setCopilotAnswer({
-      id: answerId,
+  const handleTriggerCopilot = async (
+    question: string, 
+    triggerSource: 'Automatic' | 'SpeechFinal' | 'QuestionDetection' | 'Debounced' | 'Manual' = 'Manual'
+  ) => {
+    const contextLines = paragraphs.slice(-3).map((p) => p.text);
+    await llmSchedulerRef.current.scheduleTrigger(
       question,
-      answer: '',
-      timestamp: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }),
-      isStreaming: true,
-    });
-
-    try {
-      const response = await fetch('/api/copilot/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question,
-          context: finalTranscripts.slice(-6).map((t) => t.text),
-        }),
-      });
-
-      if (!response.ok || !response.body) {
-        throw new Error('Failed to connect to copilot stream');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let accumulated = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.text) {
-                accumulated += data.text;
-                setCopilotAnswer((prev) =>
-                  prev ? { ...prev, answer: accumulated, isStreaming: true } : null
-                );
-              }
-              if (data.done) {
-                setCopilotAnswer((prev) =>
-                  prev ? { ...prev, isStreaming: false } : null
-                );
-              }
-            } catch {
-              // ignore parse errors for partial chunks
-            }
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error('Copilot streaming error:', err);
-      setCopilotAnswer((prev) =>
-        prev
-          ? {
-              ...prev,
-              answer:
-                "💡 **Key Talking Points:**\n• **Core Strategy:** State the problem, your architectural trade-offs, and final result.\n• **STAR Method:** Highlight your direct technical leadership and quantifiable impact.\n• **Deepgram & .NET:** Explain how 16kHz PCM streaming achieves sub-100ms real-time latency.",
-              isStreaming: false,
-            }
-          : null
-      );
-    }
+      contextLines,
+      settings,
+      triggerSource,
+      (answer) => setCopilotAnswer(answer)
+    );
   };
 
   // Start Interview Pipeline
@@ -227,7 +250,6 @@ export default function App() {
 
     try {
       setIsInterviewActive(true);
-      setCurrentInterim('');
 
       if (settings.deepgramApiKey) {
         // Real Deepgram Nova-3 WebSocket Connection
@@ -265,48 +287,70 @@ export default function App() {
     setAudioVolume(0);
     audioCaptureRef.current?.stop();
     deepgramClientRef.current?.disconnect();
-    if (simulationTimerRef.current) {
-      clearInterval(simulationTimerRef.current);
-      simulationTimerRef.current = null;
-    }
+    llmSchedulerRef.current.cancelActive();
+    simulationTimersRef.current.forEach((t) => clearTimeout(t));
+    simulationTimersRef.current = [];
     setIsSimulating(false);
   };
 
-  // Realistic Interview Speech Simulator (tests interim and final events)
+  // Realistic Multi-Turn Speech Simulator showing consecutive segment paragraph grouping
   const handleSimulateSpeechSequence = () => {
     if (isSimulating) return;
     setIsSimulating(true);
 
-    const simulationWords = [
-      "Can", "you", "tell", "me", "about", "a", "time", "you", "optimized", "a", "low-latency", "system?"
-    ];
+    const store = transcriptStoreRef.current;
 
-    let currentIdx = 0;
-    let accumulated = '';
+    // Simulate Part 1: First sentence
+    const part1Words = ["I've", "been", "working", "with", "distributed", "systems", "and", ".NET", "for", "several", "years."];
+    // Simulate Part 2: Consecutive sentence within 1.5 seconds (automatically groups into the same paragraph)
+    const part2Words = ["Recently,", "I", "focused", "heavily", "on", "low-latency", "WebSocket", "speech", "streaming", "and", "MVVM", "architecture."];
+    // Simulate Part 3: Interviewer question
+    const questionWords = ["Can", "you", "explain", "how", "you", "minimize", "audio", "buffer", "latency", "in", "Windows?"];
 
-    const timer = window.setInterval(() => {
-      if (currentIdx < simulationWords.length) {
-        accumulated += (currentIdx === 0 ? '' : ' ') + simulationWords[currentIdx];
-        setCurrentInterim(accumulated);
-        currentIdx++;
-      } else {
-        clearInterval(timer);
-        simulationTimerRef.current = null;
-        setCurrentInterim('');
-        const evt: TranscriptEvent = {
-          text: accumulated,
-          isFinal: true,
-          speechFinal: true,
-          confidence: 0.98,
-          timestamp: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        };
-        setFinalTranscripts((prev) => [...prev, evt]);
-        setIsSimulating(false);
-        checkForQuestionAndTriggerCopilot(accumulated);
-      }
-    }, 180);
+    const runStreamWords = (words: string[], delayBetweenWords: number, onComplete: () => void) => {
+      let currentIdx = 0;
+      let acc = '';
 
-    simulationTimerRef.current = timer;
+      const interval = window.setInterval(() => {
+        if (currentIdx < words.length) {
+          acc += (currentIdx === 0 ? '' : ' ') + words[currentIdx];
+          store.updateInterim(acc);
+          currentIdx++;
+        } else {
+          clearInterval(interval);
+          const fullText = acc;
+          store.addFinal({
+            text: fullText,
+            isFinal: true,
+            speechFinal: true,
+            confidence: 0.97,
+            timestamp: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }),
+            timestampMs: Date.now(),
+          });
+          onComplete();
+        }
+      }, delayBetweenWords);
+
+      simulationTimersRef.current.push(interval);
+    };
+
+    // Step 1: Speak Part 1
+    runStreamWords(part1Words, 140, () => {
+      // Step 2: 1.2s pause (well within 4s window), Speak Part 2 -> Auto-grouped into paragraph!
+      const t1 = window.setTimeout(() => {
+        runStreamWords(part2Words, 140, () => {
+          // Step 3: 2s pause, Interviewer speaks question
+          const t2 = window.setTimeout(() => {
+            runStreamWords(questionWords, 150, () => {
+              setIsSimulating(false);
+              checkForQuestionAndTriggerCopilot(questionWords.join(' '));
+            });
+          }, 1800);
+          simulationTimersRef.current.push(t2);
+        });
+      }, 1200);
+      simulationTimersRef.current.push(t1);
+    });
   };
 
   const handleTestDeepgramKey = async (key: string) => {
@@ -324,6 +368,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+      {/* Toast Notification */}
+      {downloadNotification && (
+        <div className="fixed top-16 right-6 z-50 px-4 py-2.5 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-200 text-xs font-medium shadow-xl flex items-center gap-2 animate-bounce">
+          <Download size={14} className="text-emerald-400" />
+          <span>{downloadNotification}</span>
+        </div>
+      )}
+
       {/* Top Navigation Bar */}
       <header className="px-6 py-3.5 bg-slate-950/90 border-b border-slate-800/80 flex items-center justify-between sticky top-0 z-40 backdrop-blur-md">
         <div className="flex items-center gap-3">
@@ -365,6 +417,17 @@ export default function App() {
 
         {/* Quick Actions */}
         <div className="flex items-center gap-2">
+          {paragraphs.length > 0 && (
+            <button
+              onClick={handleDownloadTranscript}
+              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 transition-colors"
+              title="Download Transcript to text file"
+            >
+              <Download size={13} />
+              <span className="hidden md:inline">Download Transcript</span>
+            </button>
+          )}
+
           <button
             onClick={() => setIsSettingsOpen(true)}
             className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800/70 rounded-lg transition-colors"
@@ -396,13 +459,18 @@ export default function App() {
               onSimulateSpeech={handleSimulateSpeechSequence}
               isSimulating={isSimulating}
               onOpenCodeExplorer={() => setActiveView('code')}
+              onDownloadTranscript={handleDownloadTranscript}
+              hasTranscripts={paragraphs.length > 0}
+              paragraphCount={paragraphs.length}
+              autoScrollToBottom={settings.autoScrollToBottom !== false}
+              onToggleAutoScroll={handleToggleAutoScroll}
             />
 
             {/* Architecture Flow Explanation Banner */}
             <div className="w-full max-w-3xl p-4 rounded-xl bg-slate-900/50 border border-slate-800/80 text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-2 text-slate-300">
                 <span className="font-mono text-purple-400 font-bold">Pipeline:</span>
-                <span>Microphone (16kHz PCM) → Deepgram Nova-3 (WebSocket) → Interim/Final → Floating Overlay &amp; LLM Copilot</span>
+                <span>Microphone (16kHz PCM) → Deepgram Nova-3 (WebSocket) → Auto-Grouped Paragraphs → Overlay &amp; LLM Copilot</span>
               </div>
               <button
                 onClick={() => setActiveView('code')}
@@ -424,27 +492,35 @@ export default function App() {
           status={status}
           currentInterim={currentInterim}
           finalTranscripts={finalTranscripts}
+          paragraphs={paragraphs}
           copilotAnswer={copilotAnswer}
           onClear={() => {
-            setFinalTranscripts([]);
-            setCurrentInterim('');
+            transcriptStoreRef.current.clear();
             setCopilotAnswer(null);
           }}
           opacity={settings.overlayOpacity}
           onOpacityChange={(op) => saveSettings({ ...settings, overlayOpacity: op })}
           fontSize={settings.overlayFontSize}
           onFontSizeChange={(fs) => saveSettings({ ...settings, overlayFontSize: fs })}
-          onTriggerCopilot={handleTriggerCopilot}
+          onTriggerCopilot={(q) => handleTriggerCopilot(q, 'Manual')}
+          onDownloadTranscript={handleDownloadTranscript}
+          autoScrollToBottom={settings.autoScrollToBottom !== false}
+          onToggleAutoScroll={handleToggleAutoScroll}
         />
       </main>
 
-      {/* Settings Modal */}
+      {/* Settings Modal with Full LLM & Metrics Controls */}
       <SettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         settings={settings}
         onSave={saveSettings}
         onTestDeepgramKey={handleTestDeepgramKey}
+        onDownloadTranscript={handleDownloadTranscript}
+        hasTranscripts={paragraphs.length > 0}
+        paragraphCount={paragraphs.length}
+        sessionMetrics={metrics}
+        onResetMetrics={() => llmSchedulerRef.current.resetMetrics()}
       />
     </div>
   );

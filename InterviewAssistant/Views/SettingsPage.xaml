@@ -8,18 +8,17 @@
              BackgroundColor="#0F172A">
 
     <ScrollView>
-        <VerticalStackLayout Spacing="24" Padding="32" MaximumWidthRequest="720">
+        <VerticalStackLayout Spacing="20" Padding="28" MaximumWidthRequest="760">
             
-            <Label Text="Settings" FontSize="26" FontAttributes="Bold" TextColor="#F8FAFC" />
+            <Label Text="Application &amp; Pipeline Settings" FontSize="24" FontAttributes="Bold" TextColor="#F8FAFC" />
 
-            <!-- Deepgram API Key -->
-            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+            <!-- 1. STT: Deepgram Configuration -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="18">
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="8" />
                 </Border.StrokeShape>
                 <VerticalStackLayout Spacing="12">
-                    <Label Text="Deepgram API Credentials" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
-                    <Label Text="Stored locally in secure settings. Never committed to source control." FontSize="12" TextColor="#94A3B8" />
+                    <Label Text="STT Provider: Deepgram Nova-3" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
                     
                     <Entry Text="{Binding DeepgramApiKey}"
                            IsPassword="True"
@@ -34,50 +33,122 @@
                                 BackgroundColor="#334155"
                                 TextColor="#F8FAFC"
                                 CornerRadius="6"
-                                Padding="16,8" />
+                                Padding="14,6" />
                         <Label Text="{Binding TestConnectionResult}" TextColor="#38BDF8" VerticalOptions="Center" FontSize="12" />
                     </HorizontalStackLayout>
-                </VerticalStackLayout>
-            </Border>
 
-            <!-- Speech Config -->
-            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
-                <Border.StrokeShape>
-                    <RoundRectangle CornerRadius="8" />
-                </Border.StrokeShape>
-                <VerticalStackLayout Spacing="14">
-                    <Label Text="Speech-to-Text Model" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
-                    
-                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12">
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="10" Margin="0,8,0,0">
                         <Label Grid.Row="0" Grid.Column="0" Text="Interim Results (Real-time live preview)" TextColor="#E2E8F0" VerticalOptions="Center" />
                         <Switch Grid.Row="0" Grid.Column="1" IsToggled="{Binding InterimResults}" />
 
-                        <Label Grid.Row="1" Grid.Column="0" Text="Smart Formatting (Punctuation, numbers)" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Label Grid.Row="1" Grid.Column="0" Text="Smart Formatting (Punctuation, casing)" TextColor="#E2E8F0" VerticalOptions="Center" />
                         <Switch Grid.Row="1" Grid.Column="1" IsToggled="{Binding SmartFormatting}" />
-
-                        <Label Grid.Row="2" Grid.Column="0" Text="Model: Nova-3 (English)" TextColor="#94A3B8" VerticalOptions="Center" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>
 
-            <!-- Privacy Defaults -->
-            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+            <!-- 2. LLM Engine & Trigger Controls -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="18">
                 <Border.StrokeShape>
                     <RoundRectangle CornerRadius="8" />
                 </Border.StrokeShape>
                 <VerticalStackLayout Spacing="14">
-                    <Label Text="Privacy &amp; Data Retention" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
-                    <Label Text="All defaults are strictly OFF for maximum security during live interviews." FontSize="12" TextColor="#94A3B8" />
+                    <Label Text="LLM Copilot: Provider &amp; Trigger Controls" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <Label Text="Controlled event-driven triggers. Never sends requests on every interim update." FontSize="12" TextColor="#94A3B8" />
 
-                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12">
-                        <Label Grid.Row="0" Grid.Column="0" Text="Save Audio to Disk" TextColor="#E2E8F0" VerticalOptions="Center" />
-                        <Switch Grid.Row="0" Grid.Column="1" IsToggled="{Binding SaveAudio}" />
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="140,*" RowSpacing="10">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Provider &amp; Model:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="0" Grid.Column="1" Text="{Binding LlmModel}" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
 
-                        <Label Grid.Row="1" Grid.Column="0" Text="Save Transcripts to Disk" TextColor="#E2E8F0" VerticalOptions="Center" />
-                        <Switch Grid.Row="1" Grid.Column="1" IsToggled="{Binding SaveTranscript}" />
+                        <Label Grid.Row="1" Grid.Column="0" Text="LLM API Key:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="1" Grid.Column="1" Text="{Binding LlmApiKey}" IsPassword="True" Placeholder="Optional for offline fallback" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
 
-                        <Label Grid.Row="2" Grid.Column="0" Text="Screen Capture / Vision" TextColor="#E2E8F0" VerticalOptions="Center" />
-                        <Switch Grid.Row="2" Grid.Column="1" IsToggled="{Binding ScreenCapture}" />
+                        <Label Grid.Row="2" Grid.Column="0" Text="Trigger Mode:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="2" Grid.Column="1" Text="{Binding LlmTriggerMode}" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
+                    </Grid>
+
+                    <BoxView HeightRequest="1" Color="#1E293B" Margin="0,4" />
+
+                    <!-- Rate Limits & Tokens -->
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="10">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Max Requests / Minute" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Label Grid.Row="0" Grid.Column="1" Text="{Binding LlmMaxRequestsPerMinute}" TextColor="#A855F7" FontAttributes="Bold" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Min Time Between Requests (ms)" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Label Grid.Row="1" Grid.Column="1" Text="{Binding LlmMinTimeBetweenRequestsMs}" TextColor="#A855F7" FontAttributes="Bold" />
+
+                        <Label Grid.Row="2" Grid.Column="0" Text="Max Context Tokens (Bounded Window)" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Label Grid.Row="2" Grid.Column="1" Text="{Binding LlmMaxContextTokens}" TextColor="#A855F7" FontAttributes="Bold" />
+
+                        <Label Grid.Row="3" Grid.Column="0" Text="Max Output Tokens" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Label Grid.Row="3" Grid.Column="1" Text="{Binding LlmMaxOutputTokens}" TextColor="#A855F7" FontAttributes="Bold" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 3. Candidate Profile -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="18">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Candidate Profile" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <Label Text="Injected into LLM context for personalized talking points." FontSize="12" TextColor="#94A3B8" />
+
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="120,*" RowSpacing="8">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Role:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="0" Grid.Column="1" Text="{Binding CandidateRole}" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Experience:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="1" Grid.Column="1" Text="{Binding CandidateExperience}" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
+
+                        <Label Grid.Row="2" Grid.Column="0" Text="Main Skills:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="2" Grid.Column="1" Text="{Binding CandidateSkills}" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
+
+                        <Label Grid.Row="3" Grid.Column="0" Text="Answer Style:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Entry Grid.Row="3" Grid.Column="1" Text="{Binding LlmAnswerStyle}" BackgroundColor="#1E293B" TextColor="#F8FAFC" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 4. Session Metrics & Cost -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="18">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Live Session Metrics &amp; Cost Estimation" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    
+                    <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="6">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Total LLM Requests:" TextColor="#94A3B8" />
+                        <Label Grid.Row="0" Grid.Column="1" Text="{Binding SessionTotalRequests}" TextColor="#F8FAFC" FontAttributes="Bold" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Tokens (In / Out):" TextColor="#94A3B8" />
+                        <Label Grid.Row="1" Grid.Column="1" Text="{Binding SessionTotalOutputTokens}" TextColor="#F8FAFC" />
+
+                        <Label Grid.Row="2" Grid.Column="0" Text="Average TTFT (Time-to-First-Token):" TextColor="#94A3B8" />
+                        <Label Grid.Row="2" Grid.Column="1" Text="{Binding SessionAverageTtftMs, StringFormat='{0} ms'}" TextColor="#38BDF8" FontAttributes="Bold" />
+
+                        <Label Grid.Row="3" Grid.Column="0" Text="Estimated Session Cost:" TextColor="#94A3B8" />
+                        <Label Grid.Row="3" Grid.Column="1" Text="{Binding SessionEstimatedCostUsd, StringFormat='${0:F4}'}" TextColor="#22C55E" FontAttributes="Bold" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- 5. Overlay & Display Config -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="18">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Overlay &amp; Display" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="10">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Always On Top" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="0" Grid.Column="1" IsToggled="{Binding AlwaysOnTop}" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Auto-scroll to bottom (Lock to latest speech)" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="1" Grid.Column="1" IsToggled="{Binding AutoScrollToBottom}" />
                     </Grid>
                 </VerticalStackLayout>
             </Border>

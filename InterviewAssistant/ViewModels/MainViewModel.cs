@@ -21,6 +21,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ITranscriptStore _transcriptStore;
     private readonly IOverlayWindowService _overlayService;
     private readonly ISettingsService _settingsService;
+    private readonly Services.LLM.ILLMRequestScheduler? _llmScheduler;
     private readonly ILogger<MainViewModel>? _logger;
     private CancellationTokenSource? _interviewCts;
 
@@ -53,6 +54,7 @@ public partial class MainViewModel : ObservableObject
         ITranscriptStore transcriptStore,
         IOverlayWindowService overlayService,
         ISettingsService settingsService,
+        Services.LLM.ILLMRequestScheduler? llmScheduler = null,
         ILogger<MainViewModel>? logger = null)
     {
         _audioCapture = audioCapture;
@@ -60,11 +62,13 @@ public partial class MainViewModel : ObservableObject
         _transcriptStore = transcriptStore;
         _overlayService = overlayService;
         _settingsService = settingsService;
+        _llmScheduler = llmScheduler;
         _logger = logger;
 
         _speechProvider.StateChanged += OnSpeechStateChanged;
         _speechProvider.TranscriptReceived += OnTranscriptReceived;
         _audioCapture.AudioChunkReceived += OnAudioChunkReceived;
+        _transcriptStore.StoreChanged += (s, e) => HasTranscripts = _transcriptStore.FinalSegments.Count > 0;
 
         _ = InitializeAsync();
     }
@@ -125,6 +129,29 @@ public partial class MainViewModel : ObservableObject
         if (e.IsFinal || e.SpeechFinal)
         {
             _transcriptStore.AddFinal(e);
+
+            var text = e.Text.Trim();
+            bool isQuestion = text.EndsWith('?') ||
+                              text.Contains("tell me about", StringComparison.OrdinalIgnoreCase) ||
+                              text.Contains("how do you", StringComparison.OrdinalIgnoreCase) ||
+                              text.Contains("can you explain", StringComparison.OrdinalIgnoreCase) ||
+                              text.Contains("what is", StringComparison.OrdinalIgnoreCase);
+
+            if (isQuestion && _llmScheduler != null)
+            {
+                var recentLines = new System.Collections.Generic.List<string>();
+                foreach (var seg in _transcriptStore.FinalSegments)
+                {
+                    recentLines.Add(seg.Text);
+                }
+
+                _ = _llmScheduler.TriggerAsync(new InterviewContext
+                {
+                    DetectedQuestion = text,
+                    TriggerSource = "SpeechFinal",
+                    RecentTranscripts = recentLines
+                });
+            }
         }
         else
         {
@@ -183,6 +210,39 @@ public partial class MainViewModel : ObservableObject
 
         StatusText = "○ Stopped";
         StatusColor = "#94A3B8";
+    }
+
+    [ObservableProperty]
+    private bool _hasTranscripts;
+
+    [ObservableProperty]
+    private string _exportMessage = string.Empty;
+
+    [RelayCommand]
+    public async Task DownloadTranscriptAsync()
+    {
+        var text = _transcriptStore.ExportTranscriptText();
+        if (_transcriptStore.FinalSegments.Count == 0)
+        {
+            ExportMessage = "No transcript available to export.";
+            return;
+        }
+
+        try
+        {
+            var fileName = $"InterviewTranscript_{DateTime.Now:yyyyMMdd_HHmmss}.txt";
+            var docsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var filePath = System.IO.Path.Combine(docsPath, fileName);
+
+            await System.IO.File.WriteAllTextAsync(filePath, text);
+            ExportMessage = $"Transcript saved to Documents: {fileName}";
+            _logger?.LogInformation("Transcript exported to {Path}", filePath);
+        }
+        catch (Exception ex)
+        {
+            ExportMessage = $"Export failed: {ex.Message}";
+            _logger?.LogError(ex, "Failed to export transcript");
+        }
     }
 
     [RelayCommand]

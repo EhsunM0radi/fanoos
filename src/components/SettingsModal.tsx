@@ -1,6 +1,23 @@
 import React, { useState } from 'react';
-import { X, Check, Key, Shield, Radio, Layers, Mic, Sliders } from 'lucide-react';
-import { AppSettings } from '../types';
+import { 
+  X, 
+  Check, 
+  Key, 
+  Shield, 
+  Radio, 
+  Layers, 
+  Mic, 
+  Sliders, 
+  Download, 
+  FileText,
+  Sparkles,
+  Zap,
+  DollarSign,
+  User,
+  Clock,
+  RotateCcw
+} from 'lucide-react';
+import { AppSettings, LLMSessionMetrics } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -8,6 +25,11 @@ interface SettingsModalProps {
   settings: AppSettings;
   onSave: (settings: AppSettings) => void;
   onTestDeepgramKey: (key: string) => Promise<{ success: boolean; error?: string }>;
+  onDownloadTranscript: () => void;
+  hasTranscripts: boolean;
+  paragraphCount: number;
+  sessionMetrics?: LLMSessionMetrics;
+  onResetMetrics?: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -16,9 +38,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   settings,
   onSave,
   onTestDeepgramKey,
+  onDownloadTranscript,
+  hasTranscripts,
+  paragraphCount,
+  sessionMetrics,
+  onResetMetrics,
 }) => {
   const [formData, setFormData] = useState<AppSettings>({ ...settings });
-  const [activeTab, setActiveTab] = useState<'speech' | 'audio' | 'overlay' | 'privacy'>('speech');
+  const [activeTab, setActiveTab] = useState<'speech' | 'llm' | 'audio' | 'overlay' | 'privacy'>('speech');
   const [testResult, setTestResult] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -47,7 +74,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col text-slate-100 max-h-[90vh]">
+      <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col text-slate-100 max-h-[92vh]">
         {/* Header */}
         <div className="px-5 py-3.5 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -63,22 +90,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center border-b border-slate-800 px-4 bg-slate-950/40 text-xs">
+        <div className="flex items-center border-b border-slate-800 px-4 bg-slate-950/40 text-xs overflow-x-auto">
           <button
             onClick={() => setActiveTab('speech')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
               activeTab === 'speech'
                 ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
             <Radio size={13} />
-            <span>Speech (Deepgram)</span>
+            <span>Speech (STT)</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('llm')}
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'llm'
+                ? 'border-purple-500 text-purple-400 font-semibold'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Sparkles size={13} className="text-purple-400" />
+            <span>LLM Copilot</span>
           </button>
 
           <button
             onClick={() => setActiveTab('audio')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
               activeTab === 'audio'
                 ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -90,7 +129,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <button
             onClick={() => setActiveTab('overlay')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
               activeTab === 'overlay'
                 ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -102,7 +141,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           <button
             onClick={() => setActiveTab('privacy')}
-            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
               activeTab === 'privacy'
                 ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
@@ -115,6 +154,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Tab Content */}
         <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs">
+          {/* TAB 1: SPEECH */}
           {activeTab === 'speech' && (
             <div className="space-y-4">
               <div>
@@ -133,36 +173,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <button
                     onClick={handleTestKey}
                     disabled={isTesting}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-medium disabled:opacity-50"
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded font-semibold transition-colors disabled:opacity-50 whitespace-nowrap"
                   >
-                    {isTesting ? 'Testing...' : 'Test Connection'}
+                    {isTesting ? 'Verifying...' : 'Test Connection'}
                   </button>
                 </div>
                 {testResult && (
-                  <p className={`mt-1.5 text-[11px] ${testResult.includes('successful') ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  <p className={`text-[11px] mt-1.5 ${testResult.includes('successful') ? 'text-emerald-400' : 'text-amber-400'}`}>
                     {testResult}
                   </p>
                 )}
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Leave blank to use interactive Speech Simulation mode, or enter your Deepgram key for live real-time speech streaming.
-                </p>
               </div>
 
-              <div className="pt-2 border-t border-slate-800 space-y-3">
+              <div className="space-y-3 pt-2 border-t border-slate-800">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Model:</span>
-                  <span className="font-mono text-purple-300 font-semibold">nova-3</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Language:</span>
-                  <span className="text-slate-300">English (en)</span>
+                  <div>
+                    <span className="text-slate-300 block font-semibold">Model:</span>
+                    <span className="text-[10px] text-slate-500">Ultra-low latency streaming model</span>
+                  </div>
+                  <span className="font-mono text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/50">
+                    Nova-3 (English)
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-slate-300 block">Interim Results:</span>
-                    <span className="text-[10px] text-slate-500">Stream words in real time before sentence ends</span>
+                    <span className="text-slate-300 block font-semibold">Interim Results:</span>
+                    <span className="text-[10px] text-slate-500">Live word updates before sentence commit</span>
                   </div>
                   <input
                     type="checkbox"
@@ -174,7 +211,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <div className="flex items-center justify-between">
                   <div>
-                    <span className="text-slate-300 block">Smart Formatting:</span>
+                    <span className="text-slate-300 block font-semibold">Smart Formatting:</span>
                     <span className="text-[10px] text-slate-500">Automatic capitalization, punctuation, numbers</span>
                   </div>
                   <input
@@ -184,80 +221,268 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     className="accent-blue-500 w-4 h-4 cursor-pointer"
                   />
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Endpointing (Silence ms):</span>
-                  <input
-                    type="number"
-                    value={formData.endpointingMs}
-                    onChange={(e) => setFormData({ ...formData, endpointingMs: parseInt(e.target.value) || 300 })}
-                    className="w-20 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-200 text-right font-mono"
-                  />
-                </div>
               </div>
             </div>
           )}
 
+          {/* TAB 2: LLM COPILOT (Sections 15-30) */}
+          {activeTab === 'llm' && (
+            <div className="space-y-4">
+              <div className="p-3 rounded bg-purple-950/40 border border-purple-800/40 text-purple-200 text-[11px] leading-relaxed">
+                🤖 <strong>Controlled Event-Driven LLM Triggering:</strong> The assistant strictly avoids calling the LLM on every interim STT update. It enforces local rate limits, question boundary detection, debouncing, and bounded context windows.
+              </div>
+
+              {/* Provider & Model */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">LLM Provider:</label>
+                  <select
+                    value={formData.llmProvider}
+                    onChange={(e) => setFormData({ ...formData, llmProvider: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500 text-xs"
+                  >
+                    <option value="DeepSeek">DeepSeek</option>
+                    <option value="Gemini">Gemini</option>
+                    <option value="OpenAI">OpenAI</option>
+                    <option value="OpenRouter">OpenRouter</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Model Name:</label>
+                  <input
+                    type="text"
+                    value={formData.llmModel}
+                    onChange={(e) => setFormData({ ...formData, llmModel: e.target.value })}
+                    placeholder="e.g. deepseek-chat, gemini-3.8-flash"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500 font-mono text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Trigger Mode & Debounce */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Trigger Mode:</label>
+                  <select
+                    value={formData.llmTriggerMode}
+                    onChange={(e) => setFormData({ ...formData, llmTriggerMode: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500 text-xs"
+                  >
+                    <option value="Automatic">Automatic (Recommended)</option>
+                    <option value="SpeechFinal">Speech Final Only</option>
+                    <option value="QuestionDetection">Question Detection Only</option>
+                    <option value="Debounced">Debounced Silence</option>
+                    <option value="Manual">Manual Only</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Debounce Delay:</label>
+                  <select
+                    value={formData.llmDebounceMs}
+                    onChange={(e) => setFormData({ ...formData, llmDebounceMs: parseInt(e.target.value) })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-purple-500 text-xs"
+                  >
+                    <option value={250}>250 ms</option>
+                    <option value={500}>500 ms (Default)</option>
+                    <option value={750}>750 ms</option>
+                    <option value={1000}>1000 ms</option>
+                    <option value={1500}>1500 ms</option>
+                    <option value={2000}>2000 ms</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Rate Limits & Token Limits */}
+              <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-3">
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-1.5">
+                  <Zap size={13} className="text-amber-400" />
+                  <span>Rate Limits &amp; Token Controls</span>
+                </span>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Max Req / Minute:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={formData.llmMaxRequestsPerMinute}
+                      onChange={(e) => setFormData({ ...formData, llmMaxRequestsPerMinute: parseInt(e.target.value) || 10 })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Min Interval (ms):</label>
+                    <input
+                      type="number"
+                      step="500"
+                      min="500"
+                      max="10000"
+                      value={formData.llmMinTimeBetweenRequestsMs}
+                      onChange={(e) => setFormData({ ...formData, llmMinTimeBetweenRequestsMs: parseInt(e.target.value) || 2000 })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Max Output Tokens:</label>
+                    <input
+                      type="number"
+                      step="25"
+                      min="50"
+                      max="500"
+                      value={formData.llmMaxOutputTokens}
+                      onChange={(e) => setFormData({ ...formData, llmMaxOutputTokens: parseInt(e.target.value) || 150 })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Answer Style:</label>
+                    <select
+                      value={formData.llmAnswerStyle}
+                      onChange={(e) => setFormData({ ...formData, llmAnswerStyle: e.target.value as any })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs"
+                    >
+                      <option value="Concise">Concise (Bullet talking points)</option>
+                      <option value="Natural">Natural (STAR conversational)</option>
+                      <option value="Detailed">Detailed (Deep technical breakdown)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Max Context Tokens:</label>
+                    <input
+                      type="number"
+                      step="500"
+                      min="500"
+                      max="8000"
+                      value={formData.llmMaxContextTokens}
+                      onChange={(e) => setFormData({ ...formData, llmMaxContextTokens: parseInt(e.target.value) || 2000 })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Candidate Profile (Section 21) */}
+              <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2.5">
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-1.5">
+                  <User size={13} className="text-blue-400" />
+                  <span>Candidate Profile (Context Injection)</span>
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Target Role:</label>
+                    <input
+                      type="text"
+                      value={formData.candidateRole}
+                      onChange={(e) => setFormData({ ...formData, candidateRole: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-slate-200 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-0.5">Key Skills:</label>
+                    <input
+                      type="text"
+                      value={formData.candidateSkills}
+                      onChange={(e) => setFormData({ ...formData, candidateSkills: e.target.value })}
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-slate-200 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Session Metrics & Cost (Sections 24-26) */}
+              {sessionMetrics && (
+                <div className="p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <DollarSign size={13} />
+                      <span>Live Session Metrics &amp; Cost Estimation</span>
+                    </span>
+                    {onResetMetrics && (
+                      <button
+                        onClick={onResetMetrics}
+                        className="text-[10px] text-slate-400 hover:text-slate-200 flex items-center gap-1"
+                      >
+                        <RotateCcw size={11} />
+                        <span>Reset</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center pt-1">
+                    <div className="p-2 rounded bg-slate-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">LLM Requests</span>
+                      <span className="text-xs font-bold text-slate-200 font-mono">{sessionMetrics.totalRequests}</span>
+                    </div>
+
+                    <div className="p-2 rounded bg-slate-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">Avg TTFT</span>
+                      <span className="text-xs font-bold text-sky-400 font-mono">
+                        {sessionMetrics.averageTtftMs ? `${sessionMetrics.averageTtftMs} ms` : '—'}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded bg-slate-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">Tokens (In/Out)</span>
+                      <span className="text-xs font-bold text-purple-400 font-mono">
+                        {sessionMetrics.totalInputTokens}/{sessionMetrics.totalOutputTokens}
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded bg-slate-950 border border-slate-800">
+                      <span className="text-[10px] text-slate-500 block">Estimated Cost</span>
+                      <span className="text-xs font-bold text-emerald-400 font-mono">
+                        ${sessionMetrics.estimatedCostUsd.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: AUDIO */}
           {activeTab === 'audio' && (
             <div className="space-y-4">
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">Audio Capture Mode:</label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 p-2.5 rounded bg-slate-950 border border-slate-800 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="captureMode"
-                      value="Microphone"
-                      checked={formData.captureMode === 'Microphone'}
-                      onChange={() => setFormData({ ...formData, captureMode: 'Microphone' })}
-                      className="accent-blue-500"
-                    />
-                    <div>
-                      <span className="block text-slate-200 font-medium">Microphone (Candidate Voice)</span>
-                      <span className="block text-[11px] text-slate-500">Standard low-latency MVP capture</span>
-                    </div>
-                  </label>
+                <select
+                  value={formData.captureMode}
+                  onChange={(e) => setFormData({ ...formData, captureMode: e.target.value as any })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 text-xs"
+                >
+                  <option value="Microphone">Microphone (Recommended for candidate speech)</option>
+                  <option value="SystemAudio">System Audio (Loopback for interviewer audio)</option>
+                  <option value="Combined">Combined (Microphone + System Audio)</option>
+                </select>
+              </div>
 
-                  <label className="flex items-center gap-2 p-2.5 rounded bg-slate-950 border border-slate-800 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="captureMode"
-                      value="SystemAudio"
-                      checked={formData.captureMode === 'SystemAudio'}
-                      onChange={() => setFormData({ ...formData, captureMode: 'SystemAudio' })}
-                      className="accent-blue-500"
-                    />
-                    <div>
-                      <span className="block text-slate-200 font-medium">System Audio (Interviewer Voice)</span>
-                      <span className="block text-[11px] text-slate-500">Windows WASAPI Loopback Capture (P1)</span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-2 p-2.5 rounded bg-slate-950 border border-slate-800 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="captureMode"
-                      value="Combined"
-                      checked={formData.captureMode === 'Combined'}
-                      onChange={() => setFormData({ ...formData, captureMode: 'Combined' })}
-                      className="accent-blue-500"
-                    />
-                    <div>
-                      <span className="block text-slate-200 font-medium">Microphone + System Audio</span>
-                      <span className="block text-[11px] text-slate-500">Captures both interviewer & candidate</span>
-                    </div>
-                  </label>
-                </div>
+              <div className="p-3 rounded bg-slate-950 border border-slate-800 space-y-1.5">
+                <span className="text-slate-300 font-semibold block">PCM Audio Specifications:</span>
+                <p className="text-[11px] text-slate-400 leading-relaxed font-mono">
+                  Sample Rate: 16,000 Hz · Channels: 1 (Mono) · Bit Depth: 16-bit Linear PCM · Chunk Size: ~100ms chunks (3200 bytes)
+                </p>
               </div>
             </div>
           )}
 
+          {/* TAB 4: OVERLAY */}
           {activeTab === 'overlay' && (
             <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300 font-semibold">Default Opacity:</span>
-                  <span className="font-mono text-slate-400">{Math.round(formData.overlayOpacity * 100)}%</span>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-slate-300 font-semibold">Overlay Opacity:</span>
+                  <span className="font-mono text-purple-300 text-xs">{Math.round(formData.overlayOpacity * 100)}%</span>
                 </div>
                 <input
                   type="range"
@@ -266,14 +491,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   step="0.05"
                   value={formData.overlayOpacity}
                   onChange={(e) => setFormData({ ...formData, overlayOpacity: parseFloat(e.target.value) })}
-                  className="w-full accent-blue-500 cursor-pointer"
+                  className="w-full accent-purple-500 cursor-pointer"
                 />
               </div>
 
-              <div className="space-y-2 pt-2 border-t border-slate-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300 font-semibold">Font Size:</span>
-                  <span className="font-mono text-slate-400">{formData.overlayFontSize}px</span>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-slate-300 font-semibold">Overlay Font Size:</span>
+                  <span className="font-mono text-purple-300 text-xs">{formData.overlayFontSize}px</span>
                 </div>
                 <input
                   type="range"
@@ -298,9 +523,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   className="accent-blue-500 w-4 h-4 cursor-pointer"
                 />
               </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+                <div>
+                  <span className="text-slate-300 block font-semibold">Auto-scroll to bottom:</span>
+                  <span className="text-[10px] text-slate-500">Keeps transcript display locked to latest speech</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={formData.autoScrollToBottom !== false}
+                  onChange={(e) => setFormData({ ...formData, autoScrollToBottom: e.target.checked })}
+                  className="accent-blue-500 w-4 h-4 cursor-pointer"
+                />
+              </div>
             </div>
           )}
 
+          {/* TAB 5: PRIVACY */}
           {activeTab === 'privacy' && (
             <div className="space-y-3">
               <div className="p-3 rounded bg-blue-950/40 border border-blue-800/40 text-blue-200 text-[11px] leading-relaxed">
@@ -347,6 +586,37 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </div>
               </div>
+
+              {/* Manual Export Option */}
+              <div className="pt-4 border-t border-slate-800">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-950 border border-slate-800">
+                  <div>
+                    <span className="text-slate-200 font-semibold block flex items-center gap-1.5">
+                      <FileText size={13} className="text-blue-400" />
+                      <span>Export Session Transcript</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400">
+                      {hasTranscripts
+                        ? `${paragraphCount} grouped paragraph blocks ready to export.`
+                        : 'No transcript recorded in the current session.'}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onDownloadTranscript}
+                    disabled={!hasTranscripts}
+                    className={`px-3 py-1.5 rounded text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                      hasTranscripts
+                        ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    <Download size={13} />
+                    <span>Download .txt</span>
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -363,7 +633,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             onClick={handleSave}
             className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded transition-colors flex items-center gap-1.5 shadow-sm"
           >
-            <Check size={14} />
+            <Check size={13} />
             <span>Save Settings</span>
           </button>
         </div>

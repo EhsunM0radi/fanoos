@@ -8,37 +8,47 @@
              BackgroundColor="#090D16"
              Opacity="{Binding Opacity}">
 
-    <Grid RowDefinitions="Auto, *, Auto" Padding="14">
+    <Grid RowDefinitions="Auto, *, Auto" Padding="12">
         
         <!-- Minimal Overlay Header -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto, Auto" Margin="0,0,0,10">
+        <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto, Auto, Auto" Margin="0,0,0,8">
             <HorizontalStackLayout Grid.Column="0" Spacing="6" VerticalOptions="Center">
                 <Ellipse WidthRequest="8" HeightRequest="8" Fill="#22C55E" />
-                <Label Text="Listening" FontSize="12" FontAttributes="Bold" TextColor="#22C55E" VerticalOptions="Center" />
+                <Label Text="Live" FontSize="11" FontAttributes="Bold" TextColor="#22C55E" VerticalOptions="Center" />
+                <Label Text="· Nova-3" FontSize="10" TextColor="#64748B" VerticalOptions="Center" />
             </HorizontalStackLayout>
 
-            <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
+            <Button Grid.Column="2" Text="Auto-scroll" Command="{Binding ToggleAutoScrollCommand}"
+                    Padding="6,2" HeightRequest="22" FontSize="10" BackgroundColor="#1E293B" TextColor="#38BDF8" Margin="4,0" />
+
+            <HorizontalStackLayout Grid.Column="3" Spacing="4" VerticalOptions="Center">
                 <Button Text="−" Command="{Binding UpdateFontSizeCommand}" CommandParameter="13"
-                        Padding="6,2" HeightRequest="24" FontSize="11" BackgroundColor="#1E293B" TextColor="#CBD5E1" />
+                        Padding="6,2" HeightRequest="22" FontSize="10" BackgroundColor="#1E293B" TextColor="#CBD5E1" />
                 <Button Text="+" Command="{Binding UpdateFontSizeCommand}" CommandParameter="17"
-                        Padding="6,2" HeightRequest="24" FontSize="11" BackgroundColor="#1E293B" TextColor="#CBD5E1" />
+                        Padding="6,2" HeightRequest="22" FontSize="10" BackgroundColor="#1E293B" TextColor="#CBD5E1" />
             </HorizontalStackLayout>
 
-            <Button Grid.Column="3" Text="Clear" Command="{Binding ClearTranscriptCommand}"
-                    Padding="8,2" HeightRequest="24" FontSize="11" BackgroundColor="#1E293B" TextColor="#94A3B8" Margin="8,0,0,0" />
+            <Button Grid.Column="4" Text="Clear" Command="{Binding ClearTranscriptCommand}"
+                    Padding="6,2" HeightRequest="22" FontSize="10" BackgroundColor="#1E293B" TextColor="#94A3B8" Margin="6,0,0,0" />
         </Grid>
 
         <!-- Live Transcripts Area -->
         <ScrollView Grid.Row="1">
             <VerticalStackLayout Spacing="8">
                 
-                <!-- Final Committed Transcript Segments -->
-                <CollectionView ItemsSource="{Binding FinalTranscriptHistory}">
+                <!-- Grouped Readable Paragraphs -->
+                <CollectionView ItemsSource="{Binding GroupedParagraphs}">
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <VerticalStackLayout Spacing="2" Margin="0,0,0,8">
-                                <Label Text="{Binding Timestamp, StringFormat='{0:HH:mm:ss}'}" FontSize="10" TextColor="#64748B" />
-                                <Label Text="{Binding Text}" FontSize="{Binding Source={RelativeSource AncestorType={x:Type vm:OverlayViewModel}}, Path=FontSize}" TextColor="#E2E8F0" LineBreakMode="WordWrap" />
+                                <HorizontalStackLayout Spacing="6">
+                                    <Label Text="{Binding StartTime, StringFormat='[{0:HH:mm:ss}]'}" FontSize="10" TextColor="#64748B" />
+                                    <Label Text="{Binding Speaker}" FontSize="10" TextColor="#94A3B8" FontAttributes="Bold" />
+                                </HorizontalStackLayout>
+                                <Label Text="{Binding Text}"
+                                       FontSize="{Binding Source={RelativeSource AncestorType={x:Type vm:OverlayViewModel}}, Path=FontSize}"
+                                       TextColor="#E2E8F0"
+                                       LineBreakMode="WordWrap" />
                             </VerticalStackLayout>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
@@ -46,8 +56,8 @@
 
                 <!-- Active Interim Speech Stream -->
                 <VerticalStackLayout IsVisible="{Binding CurrentInterimText, Converter={StaticResource StringNotEmptyConverter}}"
-                                     Spacing="2" Margin="0,4,0,0">
-                    <Label Text="CURRENT:" FontSize="10" FontAttributes="Bold" TextColor="#38BDF8" />
+                                     Spacing="2" Margin="0,2,0,0">
+                    <Label Text="CURRENT SPEECH:" FontSize="9" FontAttributes="Bold" TextColor="#38BDF8" />
                     <Label Text="{Binding CurrentInterimText}"
                            FontSize="{Binding FontSize}"
                            TextColor="#38BDF8"
@@ -57,12 +67,15 @@
 
                 <!-- Streaming Copilot Answer -->
                 <Border IsVisible="{Binding CopilotAnswer, Converter={StaticResource StringNotEmptyConverter}}"
-                        Stroke="#334155" StrokeThickness="1" BackgroundColor="#0F172A" Padding="12" Margin="0,8,0,0">
+                        Stroke="#334155" StrokeThickness="1" BackgroundColor="#0F172A" Padding="10" Margin="0,6,0,0">
                     <Border.StrokeShape>
                         <RoundRectangle CornerRadius="6" />
                     </Border.StrokeShape>
                     <VerticalStackLayout Spacing="4">
-                        <Label Text="AI COPILOT" FontSize="10" FontAttributes="Bold" TextColor="#A855F7" />
+                        <Label Text="AI INTERVIEW COPILOT" FontSize="9" FontAttributes="Bold" TextColor="#A855F7" />
+                        <Label Text="{Binding ActiveQuestion, StringFormat='&quot;{0}&quot;'}"
+                               IsVisible="{Binding ActiveQuestion, Converter={StaticResource StringNotEmptyConverter}}"
+                               FontSize="11" FontAttributes="Italic" TextColor="#C084FC" />
                         <Label Text="{Binding CopilotAnswer}" FontSize="13" TextColor="#F1F5F9" LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
                 </Border>
@@ -71,8 +84,8 @@
         </ScrollView>
 
         <!-- Quick Opacity Bar at Bottom -->
-        <Grid Grid.Row="2" ColumnDefinitions="Auto, *" Margin="0,8,0,0">
-            <Label Grid.Column="0" Text="Opacity" FontSize="11" TextColor="#64748B" VerticalOptions="Center" Margin="0,0,8,0" />
+        <Grid Grid.Row="2" ColumnDefinitions="Auto, *" Margin="0,6,0,0">
+            <Label Grid.Column="0" Text="Opacity" FontSize="10" TextColor="#64748B" VerticalOptions="Center" Margin="0,0,8,0" />
             <Slider Grid.Column="1" Minimum="0.2" Maximum="1.0" Value="{Binding Opacity}" />
         </Grid>
 

@@ -62,7 +62,7 @@ app.post('/api/deepgram/test', async (req, res) => {
 
 // Real-time Copilot streaming response using Gemini 3.8 Flash
 app.post('/api/copilot/stream', async (req, res) => {
-  const { question, context } = req.body;
+  const { question, context, candidateProfile, answerStyle } = req.body;
   if (!question) {
     return res.status(400).json({ error: 'Question is required' });
   }
@@ -92,8 +92,15 @@ app.post('/api/copilot/stream', async (req, res) => {
   }
 
   try {
+    const role = candidateProfile?.role || 'Senior Backend Engineer';
+    const skills = candidateProfile?.skills || '.NET, C#, Distributed Systems, WebSockets';
+    const style = answerStyle || 'Natural';
+
     const systemPrompt = `You are an elite, discreet real-time AI Interview Copilot.
 The user is participating in a high-stakes technical or behavioral interview.
+Candidate Profile: Role: ${role}, Skills: ${skills}.
+Answer Style: ${style}.
+
 A question was just asked by the interviewer:
 "${question}"
 
@@ -105,7 +112,7 @@ Provide brief, high-impact bulleted talking points that the user can glance at i
 Structure:
 1. Quick Direct Hook (1 sentence)
 2. 3-4 Key Talking Points (with concrete technical keywords, metrics, or STAR bullet)
-3. 1 Pitfall to avoid or Pro Tip
+3. 1 Pro Tip or Trade-off
 Format with clean markdown bullets. Keep it concise (under 120 words total). Never ramble.`;
 
     const stream = await ai.models.generateContentStream({

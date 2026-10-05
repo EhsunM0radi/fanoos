@@ -15,7 +15,7 @@ public partial class OverlayViewModel : ObservableObject
 {
     private readonly ITranscriptStore _transcriptStore;
     private readonly ISettingsService _settingsService;
-    private readonly ILLMProvider _llmProvider;
+    private readonly ILLMRequestScheduler? _llmScheduler;
     private CancellationTokenSource? _copilotCts;
 
     [ObservableProperty]
@@ -31,23 +31,59 @@ public partial class OverlayViewModel : ObservableObject
     private bool _isAlwaysOnTop = true;
 
     [ObservableProperty]
+    private bool _autoScrollToBottom = true;
+
+    [ObservableProperty]
+    private string _activeQuestion = string.Empty;
+
+    [ObservableProperty]
     private string _copilotAnswer = string.Empty;
 
     [ObservableProperty]
     private bool _isGeneratingAnswer;
 
-    public ObservableCollection<TranscriptEvent> FinalTranscriptHistory { get; } = new();
+    public ObservableCollection<TranscriptParagraph> GroupedParagraphs { get; } = new();
 
     public OverlayViewModel(
         ITranscriptStore transcriptStore,
         ISettingsService settingsService,
-        ILLMProvider llmProvider)
+        ILLMRequestScheduler? llmScheduler = null)
     {
         _transcriptStore = transcriptStore;
         _settingsService = settingsService;
-        _llmProvider = llmProvider;
+        _llmScheduler = llmScheduler;
 
         _transcriptStore.StoreChanged += OnStoreChanged;
+
+        if (_llmScheduler != null)
+        {
+            _llmScheduler.AnswerStarted += (s, q) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    ActiveQuestion = q;
+                    CopilotAnswer = string.Empty;
+                    IsGeneratingAnswer = true;
+                });
+            };
+
+            _llmScheduler.AnswerChunkReceived += (s, chunk) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    CopilotAnswer += chunk;
+                });
+            };
+
+            _llmScheduler.AnswerCompleted += (s, e) =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    IsGeneratingAnswer = false;
+                });
+            };
+        }
+
         _ = LoadSettingsAsync();
     }
 
@@ -57,74 +93,37 @@ public partial class OverlayViewModel : ObservableObject
         Opacity = settings.OverlayOpacity;
         FontSize = settings.OverlayFontSize;
         IsAlwaysOnTop = settings.AlwaysOnTop;
+        AutoScrollToBottom = settings.AutoScrollToBottom;
     }
 
     private void OnStoreChanged(object? sender, EventArgs e)
     {
-        // Update on UI thread
         MainThread.BeginInvokeOnMainThread(() =>
         {
             CurrentInterimText = _transcriptStore.CurrentInterim;
 
-            // Sync final transcripts
-            if (_transcriptStore.FinalSegments.Count != FinalTranscriptHistory.Count)
+            // Sync paragraphs
+            if (_transcriptStore.GroupedParagraphs.Count != GroupedParagraphs.Count)
             {
-                FinalTranscriptHistory.Clear();
-                foreach (var seg in _transcriptStore.FinalSegments)
+                GroupedParagraphs.Clear();
+                foreach (var p in _transcriptStore.GroupedParagraphs)
                 {
-                    FinalTranscriptHistory.Add(seg);
-                }
-
-                // Question detection trigger for streaming LLM answer
-                if (FinalTranscriptHistory.Count > 0)
-                {
-                    var lastSegment = FinalTranscriptHistory[^1].Text;
-                    if (IsQuestionOrPrompt(lastSegment))
-                    {
-                        _ = TriggerCopilotAsync(lastSegment);
-                    }
+                    GroupedParagraphs.Add(p);
                 }
             }
         });
     }
 
-    private static bool IsQuestionOrPrompt(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return false;
-        text = text.Trim();
-        return text.EndsWith("?") ||
-               text.StartsWith("Tell me about", StringComparison.OrdinalIgnoreCase) ||
-               text.StartsWith("How do you", StringComparison.OrdinalIgnoreCase) ||
-               text.StartsWith("What is", StringComparison.OrdinalIgnoreCase) ||
-               text.StartsWith("Can you explain", StringComparison.OrdinalIgnoreCase) ||
-               text.StartsWith("Describe a", StringComparison.OrdinalIgnoreCase) ||
-               text.StartsWith("Why would", StringComparison.OrdinalIgnoreCase);
-    }
-
     [RelayCommand]
-    public async Task TriggerCopilotAsync(string question)
+    public async Task TriggerCopilotManualAsync(string question)
     {
-        _copilotCts?.Cancel();
-        _copilotCts = new CancellationTokenSource();
-
-        IsGeneratingAnswer = true;
-        CopilotAnswer = string.Empty;
-
-        try
+        if (_llmScheduler != null)
         {
-            var req = new LLMRequest { UserPrompt = question };
-            await foreach (var chunk in _llmProvider.StreamAsync(req, _copilotCts.Token))
+            await _llmScheduler.TriggerAsync(new InterviewContext
             {
-                CopilotAnswer += chunk.Text;
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            // Cancelled
-        }
-        finally
-        {
-            IsGeneratingAnswer = false;
+                DetectedQuestion = question,
+                TriggerSource = "Manual"
+            });
         }
     }
 
@@ -132,9 +131,10 @@ public partial class OverlayViewModel : ObservableObject
     public void ClearTranscript()
     {
         _transcriptStore.Clear();
-        FinalTranscriptHistory.Clear();
+        GroupedParagraphs.Clear();
         CurrentInterimText = string.Empty;
         CopilotAnswer = string.Empty;
+        ActiveQuestion = string.Empty;
     }
 
     [RelayCommand]
@@ -152,6 +152,15 @@ public partial class OverlayViewModel : ObservableObject
         FontSize = Math.Clamp(newFontSize, 12, 28);
         var settings = await _settingsService.GetSettingsAsync();
         settings.OverlayFontSize = FontSize;
+        await _settingsService.SaveSettingsAsync(settings);
+    }
+
+    [RelayCommand]
+    public async Task ToggleAutoScrollAsync()
+    {
+        AutoScrollToBottom = !AutoScrollToBottom;
+        var settings = await _settingsService.GetSettingsAsync();
+        settings.AutoScrollToBottom = AutoScrollToBottom;
         await _settingsService.SaveSettingsAsync(settings);
     }
 }

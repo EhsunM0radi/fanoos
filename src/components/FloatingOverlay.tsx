@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Pin, 
   X, 
@@ -10,9 +10,16 @@ import {
   Trash2,
   Move,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Download,
+  Search,
+  ChevronUp,
+  ChevronDown,
+  ArrowDownToLine,
+  Lock,
+  Unlock
 } from 'lucide-react';
-import { TranscriptEvent, CopilotAnswer, ConnectionState } from '../types';
+import { TranscriptEvent, TranscriptParagraph, CopilotAnswer, ConnectionState } from '../types';
 
 interface FloatingOverlayProps {
   isOpen: boolean;
@@ -20,6 +27,7 @@ interface FloatingOverlayProps {
   status: ConnectionState;
   currentInterim: string;
   finalTranscripts: TranscriptEvent[];
+  paragraphs: TranscriptParagraph[];
   copilotAnswer: CopilotAnswer | null;
   onClear: () => void;
   opacity: number;
@@ -27,6 +35,9 @@ interface FloatingOverlayProps {
   fontSize: number;
   onFontSizeChange: (size: number) => void;
   onTriggerCopilot: (question: string) => void;
+  onDownloadTranscript: () => void;
+  autoScrollToBottom: boolean;
+  onToggleAutoScroll?: () => void;
 }
 
 export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
@@ -35,6 +46,7 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
   status,
   currentInterim,
   finalTranscripts,
+  paragraphs,
   copilotAnswer,
   onClear,
   opacity,
@@ -42,6 +54,9 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
   fontSize,
   onFontSizeChange,
   onTriggerCopilot,
+  onDownloadTranscript,
+  autoScrollToBottom,
+  onToggleAutoScroll,
 }) => {
   const [position, setPosition] = useState({ x: 28, y: 84 });
   const [size, setSize] = useState({ width: 440, height: 380 });
@@ -50,17 +65,59 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const [isMinimized, setIsMinimized] = useState(false);
-  const [showSettingsPopover, setShowSettingsPopover] = useState(false);
+
+  // Search State
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const paragraphRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
-  // Auto-scroll transcript container to bottom when new words come in
+  // Compute matching paragraphs based on search query
+  const matchingParagraphs = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return paragraphs.filter((p) => p.text.toLowerCase().includes(q));
+  }, [paragraphs, searchQuery]);
+
+  // Reset or clamp active match index
   useEffect(() => {
-    if (scrollRef.current) {
+    if (matchingParagraphs.length === 0) {
+      setActiveMatchIndex(0);
+    } else if (activeMatchIndex >= matchingParagraphs.length) {
+      setActiveMatchIndex(0);
+    }
+  }, [matchingParagraphs.length, activeMatchIndex]);
+
+  // Jump and scroll to active matching paragraph
+  useEffect(() => {
+    if (matchingParagraphs.length > 0 && searchQuery.trim()) {
+      const activeParagraph = matchingParagraphs[activeMatchIndex];
+      if (activeParagraph && paragraphRefs.current[activeParagraph.id]) {
+        paragraphRefs.current[activeParagraph.id]?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+        });
+      }
+    }
+  }, [activeMatchIndex, matchingParagraphs, searchQuery]);
+
+  // Focus search input when search opens
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+
+  // Auto-scroll transcript container to bottom when enabled and not actively searching
+  useEffect(() => {
+    if (autoScrollToBottom && !searchQuery.trim() && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [currentInterim, finalTranscripts, copilotAnswer]);
+  }, [currentInterim, paragraphs, copilotAnswer, autoScrollToBottom, searchQuery]);
 
   // Handle Dragging
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -115,6 +172,47 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
     };
   }, [isDragging, isResizing, dragOffset, resizeStart]);
 
+  const handleNextMatch = () => {
+    if (matchingParagraphs.length === 0) return;
+    setActiveMatchIndex((prev) => (prev + 1) % matchingParagraphs.length);
+  };
+
+  const handlePrevMatch = () => {
+    if (matchingParagraphs.length === 0) return;
+    setActiveMatchIndex((prev) => (prev - 1 + matchingParagraphs.length) % matchingParagraphs.length);
+  };
+
+  // Render text with highlighted keywords
+  const renderHighlightedText = (text: string, isCurrentMatch: boolean) => {
+    if (!searchQuery.trim()) return text;
+
+    try {
+      const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(${escaped})`, 'gi');
+      const parts = text.split(regex);
+
+      return parts.map((part, i) => {
+        if (regex.test(part)) {
+          return (
+            <mark
+              key={i}
+              className={`rounded px-1 py-0.2 font-semibold transition-all ${
+                isCurrentMatch
+                  ? 'bg-amber-400 text-slate-950 shadow-sm ring-2 ring-amber-300'
+                  : 'bg-amber-400/40 text-amber-200'
+              }`}
+            >
+              {part}
+            </mark>
+          );
+        }
+        return part;
+      });
+    } catch {
+      return text;
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -126,7 +224,7 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
         height: isMinimized ? 'auto' : `${size.height}px`,
         opacity: opacity,
       }}
-      className={`fixed top-0 left-0 z-50 rounded-xl flex flex-col bg-slate-950/95 backdrop-blur-md border border-slate-800/80 shadow-2xl text-slate-100 select-none overflow-hidden transition-opacity duration-150`}
+      className="fixed top-0 left-0 z-50 rounded-xl flex flex-col bg-slate-950/95 backdrop-blur-md border border-slate-800/80 shadow-2xl text-slate-100 select-none overflow-hidden transition-opacity duration-150"
     >
       {/* Titlebar / Drag Handle */}
       <div
@@ -154,6 +252,37 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
 
         {/* Window Controls */}
         <div className="flex items-center gap-1 no-drag">
+          {/* Search Toggle button */}
+          <button
+            onClick={() => {
+              setIsSearchOpen(!isSearchOpen);
+              if (isSearchOpen) setSearchQuery('');
+            }}
+            title={isSearchOpen ? 'Close Search (Esc)' : 'Search Transcript (Ctrl+F)'}
+            className={`p-1 rounded transition-colors ${
+              isSearchOpen || searchQuery
+                ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <Search size={13} />
+          </button>
+
+          {/* Auto-scroll Lock Toggle */}
+          {onToggleAutoScroll && (
+            <button
+              onClick={onToggleAutoScroll}
+              title={autoScrollToBottom ? 'Auto-scroll: LOCKED to latest speech' : 'Auto-scroll: UNLOCKED (free scroll)'}
+              className={`p-1 rounded transition-colors ${
+                autoScrollToBottom
+                  ? 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800'
+                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <ArrowDownToLine size={13} className={autoScrollToBottom ? 'opacity-100' : 'opacity-50'} />
+            </button>
+          )}
+
           {/* Font Size controls */}
           <button
             onClick={() => onFontSizeChange(Math.max(12, fontSize - 1))}
@@ -171,7 +300,17 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
             <Plus size={13} />
           </button>
 
-          <div className="w-[1px] h-3 bg-slate-800 mx-1" />
+          <div className="w-[1px] h-3 bg-slate-800 mx-0.5" />
+
+          {/* Download button */}
+          <button
+            onClick={onDownloadTranscript}
+            disabled={paragraphs.length === 0}
+            title={paragraphs.length > 0 ? "Download Transcript (.txt)" : "No transcript yet"}
+            className="p-1 text-slate-400 hover:text-emerald-300 hover:bg-slate-800 rounded transition-colors disabled:opacity-40 disabled:hover:text-slate-400"
+          >
+            <Download size={13} />
+          </button>
 
           {/* Clear button */}
           <button
@@ -202,6 +341,74 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
         </div>
       </div>
 
+      {/* Local Text-Based Search Bar */}
+      {isSearchOpen && (
+        <div className="px-3 py-2 bg-slate-900 border-b border-slate-800 flex items-center gap-2 text-xs no-drag">
+          <div className="relative flex-1 flex items-center">
+            <Search size={13} className="absolute left-2.5 text-slate-400 pointer-events-none" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setActiveMatchIndex(0);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (e.shiftKey) handlePrevMatch();
+                  else handleNextMatch();
+                } else if (e.key === 'Escape') {
+                  setIsSearchOpen(false);
+                  setSearchQuery('');
+                }
+              }}
+              placeholder="Search transcript keywords (Enter to jump)..."
+              className="w-full bg-slate-950 border border-slate-700/80 rounded pl-7 pr-7 py-1 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setActiveMatchIndex(0);
+                }}
+                className="absolute right-2 text-slate-400 hover:text-slate-200"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+
+          {/* Match Count & Navigation Controls */}
+          {searchQuery.trim() && (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                {matchingParagraphs.length > 0
+                  ? `${activeMatchIndex + 1}/${matchingParagraphs.length}`
+                  : '0 matches'}
+              </span>
+
+              <button
+                onClick={handlePrevMatch}
+                disabled={matchingParagraphs.length === 0}
+                title="Previous match (Shift+Enter)"
+                className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded disabled:opacity-30"
+              >
+                <ChevronUp size={14} />
+              </button>
+              <button
+                onClick={handleNextMatch}
+                disabled={matchingParagraphs.length === 0}
+                title="Next match (Enter)"
+                className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded disabled:opacity-30"
+              >
+                <ChevronDown size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {!isMinimized && (
         <>
           {/* Main Content Area: Transcripts & AI Copilot */}
@@ -211,42 +418,69 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
             style={{ fontSize: `${fontSize}px` }}
           >
             {/* Empty State */}
-            {finalTranscripts.length === 0 && !currentInterim && (
+            {paragraphs.length === 0 && !currentInterim && (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
                 <Volume2 className="w-8 h-8 mb-2 stroke-1 text-slate-600 animate-pulse" />
                 <p className="text-xs font-medium text-slate-400">Waiting for speech...</p>
                 <p className="text-[11px] text-slate-600 mt-1 max-w-[240px]">
-                  Start interview audio to stream real-time interim and final transcripts here.
+                  Start interview audio to stream real-time interim speech and automatically grouped paragraphs here.
                 </p>
               </div>
             )}
 
-            {/* Committed Final Transcripts */}
-            {finalTranscripts.map((item, idx) => {
+            {/* Committed Final Transcripts (Grouped into Paragraphs) */}
+            {paragraphs.map((item) => {
               const isInterviewerQuestion = 
                 item.text.endsWith('?') || 
                 item.text.toLowerCase().includes('tell me about') ||
                 item.text.toLowerCase().includes('explain') ||
                 item.text.toLowerCase().includes('how do you');
 
+              const isMatch = searchQuery.trim() !== '' && item.text.toLowerCase().includes(searchQuery.toLowerCase().trim());
+              const isCurrentActiveMatch = isMatch && matchingParagraphs[activeMatchIndex]?.id === item.id;
+
+              const timeSpan = item.startTime === item.endTime
+                ? item.startTime
+                : `${item.startTime} – ${item.endTime}`;
+
               return (
-                <div key={idx} className="group relative transition-all">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-[10px] font-mono text-slate-500">{item.timestamp}</span>
+                <div
+                  key={item.id}
+                  ref={(el) => {
+                    paragraphRefs.current[item.id] = el;
+                  }}
+                  className={`group relative transition-all p-2.5 rounded-lg border ${
+                    isCurrentActiveMatch
+                      ? 'bg-amber-950/30 border-amber-500/80 shadow-md ring-1 ring-amber-500/40'
+                      : isMatch
+                      ? 'bg-amber-950/15 border-amber-600/40'
+                      : 'bg-slate-900/40 border-slate-800/40 hover:border-slate-700/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className="text-[10px] font-mono text-slate-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                      {timeSpan}
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-medium">{item.speaker}</span>
                     {isInterviewerQuestion && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-950/70 border border-purple-800/50 text-purple-300 font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-950/70 border border-purple-800/50 text-purple-300 font-medium">
                         Question Detected
+                      </span>
+                    )}
+                    {isCurrentActiveMatch && (
+                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-bold ml-auto">
+                        Current Match
                       </span>
                     )}
                   </div>
                   <p className="text-slate-200 leading-relaxed font-normal">
-                    {item.text}
+                    {renderHighlightedText(item.text, isCurrentActiveMatch)}
                   </p>
 
-                  {/* Manual Copilot Trigger for this line */}
+                  {/* Manual Copilot Trigger for this paragraph */}
                   <button
                     onClick={() => onTriggerCopilot(item.text)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-1 top-0 text-[10px] text-purple-400 hover:text-purple-300 flex items-center gap-1 bg-slate-900/90 px-1.5 py-0.5 rounded border border-slate-700/60 shadow-sm"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 text-[10px] text-purple-300 hover:text-purple-200 flex items-center gap-1 bg-purple-950/80 hover:bg-purple-900 px-2 py-0.5 rounded border border-purple-700/60 shadow-sm"
                   >
                     <Sparkles size={11} />
                     <span>Get Answer</span>
@@ -310,6 +544,12 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
                 className="w-16 h-1 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
               />
               <span className="text-[10px] font-mono text-slate-500">{Math.round(opacity * 100)}%</span>
+            </div>
+
+            {/* Quick auto-scroll indicator */}
+            <div className="flex items-center gap-1 text-[10px] text-slate-500">
+              <span className={`w-1.5 h-1.5 rounded-full ${autoScrollToBottom ? 'bg-emerald-500' : 'bg-slate-600'}`} />
+              <span>{autoScrollToBottom ? 'Auto-scroll ON' : 'Auto-scroll OFF'}</span>
             </div>
 
             {/* Resize grip */}
