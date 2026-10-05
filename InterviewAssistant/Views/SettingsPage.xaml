@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:InterviewAssistant.ViewModels"
+             x:Class="InterviewAssistant.Views.SettingsPage"
+             x:DataType="vm:SettingsViewModel"
+             Title="Settings"
+             BackgroundColor="#0F172A">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="24" Padding="32" MaximumWidthRequest="720">
+            
+            <Label Text="Settings" FontSize="26" FontAttributes="Bold" TextColor="#F8FAFC" />
+
+            <!-- Deepgram API Key -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="Deepgram API Credentials" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <Label Text="Stored locally in secure settings. Never committed to source control." FontSize="12" TextColor="#94A3B8" />
+                    
+                    <Entry Text="{Binding DeepgramApiKey}"
+                           IsPassword="True"
+                           Placeholder="Enter Deepgram API Key..."
+                           TextColor="#F8FAFC"
+                           BackgroundColor="#1E293B" />
+
+                    <HorizontalStackLayout Spacing="12">
+                        <Button Text="Test Connection"
+                                Command="{Binding TestConnectionCommand}"
+                                IsEnabled="{Binding IsTesting, Converter={StaticResource InvertedBoolConverter}}"
+                                BackgroundColor="#334155"
+                                TextColor="#F8FAFC"
+                                CornerRadius="6"
+                                Padding="16,8" />
+                        <Label Text="{Binding TestConnectionResult}" TextColor="#38BDF8" VerticalOptions="Center" FontSize="12" />
+                    </HorizontalStackLayout>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Speech Config -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="Speech-to-Text Model" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Interim Results (Real-time live preview)" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="0" Grid.Column="1" IsToggled="{Binding InterimResults}" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Smart Formatting (Punctuation, numbers)" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="1" Grid.Column="1" IsToggled="{Binding SmartFormatting}" />
+
+                        <Label Grid.Row="2" Grid.Column="0" Text="Model: Nova-3 (English)" TextColor="#94A3B8" VerticalOptions="Center" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Privacy Defaults -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="Privacy &amp; Data Retention" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <Label Text="All defaults are strictly OFF for maximum security during live interviews." FontSize="12" TextColor="#94A3B8" />
+
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="12">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Save Audio to Disk" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="0" Grid.Column="1" IsToggled="{Binding SaveAudio}" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Save Transcripts to Disk" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="1" Grid.Column="1" IsToggled="{Binding SaveTranscript}" />
+
+                        <Label Grid.Row="2" Grid.Column="0" Text="Screen Capture / Vision" TextColor="#E2E8F0" VerticalOptions="Center" />
+                        <Switch Grid.Row="2" Grid.Column="1" IsToggled="{Binding ScreenCapture}" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Save Action -->
+            <Button Text="Save Settings"
+                    Command="{Binding SaveCommand}"
+                    BackgroundColor="#2563EB"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    CornerRadius="6"
+                    Padding="24,12" />
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

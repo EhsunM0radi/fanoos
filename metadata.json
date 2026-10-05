@@ -1,0 +1,6 @@
+{
+  "name": "AI Interview Assistant (.NET MAUI & Live Studio)",
+  "description": "Windows-first AI Interview Assistant built with .NET MAUI & Deepgram Nova-3 real-time speech-to-text, floating overlay, and low-latency AI interview copilot.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:InterviewAssistant.ViewModels"
+             x:Class="InterviewAssistant.Views.MainPage"
+             x:DataType="vm:MainViewModel"
+             Title="AI Interview Assistant"
+             BackgroundColor="#0F172A">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="24" Padding="32" MaximumWidthRequest="720">
+            
+            <!-- Header -->
+            <VerticalStackLayout Spacing="6">
+                <Label Text="AI Interview Assistant"
+                       FontSize="28"
+                       FontAttributes="Bold"
+                       TextColor="#F8FAFC" />
+                <Label Text="Low-latency real-time speech-to-text with floating overlay"
+                       FontSize="14"
+                       TextColor="#94A3B8" />
+            </VerticalStackLayout>
+
+            <!-- Status Indicator Card -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#1E293B" Padding="18">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <Grid ColumnDefinitions="Auto, *, Auto">
+                    <HorizontalStackLayout Grid.Column="0" Spacing="10" VerticalOptions="Center">
+                        <Label Text="{Binding StatusText}"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="{Binding StatusColor}" />
+                    </HorizontalStackLayout>
+                    <Button Grid.Column="2"
+                            Text="Open Overlay"
+                            Command="{Binding ToggleOverlayCommand}"
+                            BackgroundColor="#334155"
+                            TextColor="#F8FAFC"
+                            CornerRadius="6"
+                            Padding="16,8" />
+                </Grid>
+            </Border>
+
+            <!-- Speech Section -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="Speech Engine" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <BoxView HeightRequest="1" Color="#1E293B" />
+                    
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="140,*">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Provider &amp; Model:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Label Grid.Row="0" Grid.Column="1" Text="{Binding SpeechProviderName}" TextColor="#F8FAFC" FontAttributes="Bold" VerticalOptions="Center" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Language:" TextColor="#94A3B8" VerticalOptions="Center" Margin="0,10,0,0" />
+                        <Label Grid.Row="1" Grid.Column="1" Text="{Binding Language}" TextColor="#F8FAFC" VerticalOptions="Center" Margin="0,10,0,0" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Audio Section -->
+            <Border Stroke="#1E293B" StrokeThickness="1" BackgroundColor="#111827" Padding="20">
+                <Border.StrokeShape>
+                    <RoundRectangle CornerRadius="8" />
+                </Border.StrokeShape>
+                <VerticalStackLayout Spacing="14">
+                    <Label Text="Audio Capture" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <BoxView HeightRequest="1" Color="#1E293B" />
+                    
+                    <Grid RowDefinitions="Auto,Auto" ColumnDefinitions="140,*">
+                        <Label Grid.Row="0" Grid.Column="0" Text="Input Device:" TextColor="#94A3B8" VerticalOptions="Center" />
+                        <Picker Grid.Row="0" Grid.Column="1"
+                                ItemsSource="{Binding AvailableDevices}"
+                                SelectedItem="{Binding SelectedAudioDevice}"
+                                TextColor="#F8FAFC"
+                                Title="Select Microphone" />
+
+                        <Label Grid.Row="1" Grid.Column="0" Text="Capture Mode:" TextColor="#94A3B8" VerticalOptions="Center" Margin="0,10,0,0" />
+                        <Label Grid.Row="1" Grid.Column="1" Text="{Binding CaptureMode}" TextColor="#F8FAFC" VerticalOptions="Center" Margin="0,10,0,0" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- Primary Actions -->
+            <HorizontalStackLayout Spacing="14" HorizontalOptions="Start">
+                <Button Text="Start Interview"
+                        Command="{Binding StartInterviewCommand}"
+                        IsEnabled="{Binding IsInterviewActive, Converter={StaticResource InvertedBoolConverter}}"
+                        BackgroundColor="#2563EB"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="6"
+                        Padding="24,12" />
+
+                <Button Text="Stop"
+                        Command="{Binding StopInterviewCommand}"
+                        IsEnabled="{Binding IsInterviewActive}"
+                        BackgroundColor="#DC2626"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="6"
+                        Padding="24,12" />
+            </HorizontalStackLayout>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

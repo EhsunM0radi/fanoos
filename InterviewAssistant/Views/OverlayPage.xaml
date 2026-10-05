@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:InterviewAssistant.ViewModels"
+             x:Class="InterviewAssistant.Views.OverlayPage"
+             x:DataType="vm:OverlayViewModel"
+             Title="Assistant Overlay"
+             BackgroundColor="#090D16"
+             Opacity="{Binding Opacity}">
+
+    <Grid RowDefinitions="Auto, *, Auto" Padding="14">
+        
+        <!-- Minimal Overlay Header -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto, *, Auto, Auto" Margin="0,0,0,10">
+            <HorizontalStackLayout Grid.Column="0" Spacing="6" VerticalOptions="Center">
+                <Ellipse WidthRequest="8" HeightRequest="8" Fill="#22C55E" />
+                <Label Text="Listening" FontSize="12" FontAttributes="Bold" TextColor="#22C55E" VerticalOptions="Center" />
+            </HorizontalStackLayout>
+
+            <HorizontalStackLayout Grid.Column="2" Spacing="8" VerticalOptions="Center">
+                <Button Text="−" Command="{Binding UpdateFontSizeCommand}" CommandParameter="13"
+                        Padding="6,2" HeightRequest="24" FontSize="11" BackgroundColor="#1E293B" TextColor="#CBD5E1" />
+                <Button Text="+" Command="{Binding UpdateFontSizeCommand}" CommandParameter="17"
+                        Padding="6,2" HeightRequest="24" FontSize="11" BackgroundColor="#1E293B" TextColor="#CBD5E1" />
+            </HorizontalStackLayout>
+
+            <Button Grid.Column="3" Text="Clear" Command="{Binding ClearTranscriptCommand}"
+                    Padding="8,2" HeightRequest="24" FontSize="11" BackgroundColor="#1E293B" TextColor="#94A3B8" Margin="8,0,0,0" />
+        </Grid>
+
+        <!-- Live Transcripts Area -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="8">
+                
+                <!-- Final Committed Transcript Segments -->
+                <CollectionView ItemsSource="{Binding FinalTranscriptHistory}">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <VerticalStackLayout Spacing="2" Margin="0,0,0,8">
+                                <Label Text="{Binding Timestamp, StringFormat='{0:HH:mm:ss}'}" FontSize="10" TextColor="#64748B" />
+                                <Label Text="{Binding Text}" FontSize="{Binding Source={RelativeSource AncestorType={x:Type vm:OverlayViewModel}}, Path=FontSize}" TextColor="#E2E8F0" LineBreakMode="WordWrap" />
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- Active Interim Speech Stream -->
+                <VerticalStackLayout IsVisible="{Binding CurrentInterimText, Converter={StaticResource StringNotEmptyConverter}}"
+                                     Spacing="2" Margin="0,4,0,0">
+                    <Label Text="CURRENT:" FontSize="10" FontAttributes="Bold" TextColor="#38BDF8" />
+                    <Label Text="{Binding CurrentInterimText}"
+                           FontSize="{Binding FontSize}"
+                           TextColor="#38BDF8"
+                           FontAttributes="Italic"
+                           LineBreakMode="WordWrap" />
+                </VerticalStackLayout>
+
+                <!-- Streaming Copilot Answer -->
+                <Border IsVisible="{Binding CopilotAnswer, Converter={StaticResource StringNotEmptyConverter}}"
+                        Stroke="#334155" StrokeThickness="1" BackgroundColor="#0F172A" Padding="12" Margin="0,8,0,0">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="6" />
+                    </Border.StrokeShape>
+                    <VerticalStackLayout Spacing="4">
+                        <Label Text="AI COPILOT" FontSize="10" FontAttributes="Bold" TextColor="#A855F7" />
+                        <Label Text="{Binding CopilotAnswer}" FontSize="13" TextColor="#F1F5F9" LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Border>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Quick Opacity Bar at Bottom -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto, *" Margin="0,8,0,0">
+            <Label Grid.Column="0" Text="Opacity" FontSize="11" TextColor="#64748B" VerticalOptions="Center" Margin="0,0,8,0" />
+            <Slider Grid.Column="1" Minimum="0.2" Maximum="1.0" Value="{Binding Opacity}" />
+        </Grid>
+
+    </Grid>
+</ContentPage>
