@@ -59,6 +59,11 @@ public class DeepSeekProvider : ILLMProvider
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             HttpResponseMessage? response = null;
+            bool shouldRetry = false;
+            List<LLMChunk>? streamChunks = null;
+            bool completed = false;
+            bool streamError = false;
+
             try
             {
                 var payload = new
@@ -88,6 +93,7 @@ public class DeepSeekProvider : ILLMProvider
                     if (attempt == maxRetries) response.EnsureSuccessStatusCode();
                     await Task.Delay(delayMs, cancellationToken);
                     delayMs *= 2;
+                    shouldRetry = true;
                     continue;
                 }
 
@@ -95,6 +101,8 @@ public class DeepSeekProvider : ILLMProvider
 
                 using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
                 using var reader = new StreamReader(stream);
+
+                streamChunks = new List<LLMChunk>();
 
                 while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
                 {
@@ -105,8 +113,9 @@ public class DeepSeekProvider : ILLMProvider
                     var data = line.Substring(6).Trim();
                     if (data == "[DONE]")
                     {
-                        yield return new LLMChunk { Text = string.Empty, IsFinal = true };
-                        yield break;
+                        streamChunks.Add(new LLMChunk { Text = string.Empty, IsFinal = true });
+                        completed = true;
+                        break;
                     }
 
                     using var doc = JsonDocument.Parse(data);
@@ -119,23 +128,50 @@ public class DeepSeekProvider : ILLMProvider
                             var token = contentElem.GetString();
                             if (!string.IsNullOrEmpty(token))
                             {
-                                yield return new LLMChunk { Text = token, IsFinal = false };
+                                streamChunks.Add(new LLMChunk { Text = token, IsFinal = false });
                             }
                         }
                     }
                 }
 
-                yield break;
+                completed = true;
             }
             catch (Exception ex) when (attempt < maxRetries && !(ex is OperationCanceledException))
             {
                 _logger?.LogWarning(ex, "[DeepSeek] Error on attempt {Attempt}/{MaxRetries}: {Msg}", attempt, maxRetries, ex.Message);
                 await Task.Delay(delayMs, cancellationToken);
                 delayMs *= 2;
+                shouldRetry = true;
+                streamError = true;
             }
             finally
             {
                 response?.Dispose();
+            }
+
+            if (streamChunks != null)
+            {
+                foreach (var chunk in streamChunks)
+                {
+                    yield return chunk;
+                }
+            }
+
+            if (completed)
+            {
+                yield break;
+            }
+
+            if (shouldRetry && attempt < maxRetries)
+            {
+                continue;
+            }
+
+            if (streamError && attempt >= maxRetries)
+            {
+                // Max retries exceeded, yield final error chunk
+                yield return new LLMChunk { Text = "Error: Max retries exceeded", IsFinal = true };
+                yield break;
             }
         }
     }

@@ -16,7 +16,6 @@ public partial class OverlayViewModel : ObservableObject
     private readonly ITranscriptStore _transcriptStore;
     private readonly ISettingsService _settingsService;
     private readonly ILLMRequestScheduler? _llmScheduler;
-    private CancellationTokenSource? _copilotCts;
 
     [ObservableProperty]
     private string _currentInterimText = string.Empty;

@@ -18,7 +18,9 @@ public class WindowsSystemAudioCapture : IAudioCapture
     private CancellationTokenSource? _cts;
 
     public bool IsCapturing => _isCapturing;
+#pragma warning disable CS0067 // Event is reserved for future implementation
     public event EventHandler<byte[]>? AudioChunkReceived;
+#pragma warning restore CS0067
 
     public WindowsSystemAudioCapture(ILogger<WindowsSystemAudioCapture>? logger = null)
     {

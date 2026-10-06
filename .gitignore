@@ -1,8 +1,58 @@
+# .NET build artifacts
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.docstates
+
+# MAUI / Windows
+Platforms/
+*.appx
+*.msix
+*.msixbundle
+*.pfx
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.cache
+
+# NuGet
+packages/
+*.nupkg
+*.snupkg
+
+# MAUI specific
+*.generated.cs
+*.g.cs
+*.g.i.cs
+obj/Debug/
+obj/Release/
+bin/Debug/
+bin/Release/
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# Node.js (if any)
 node_modules/
-build/
 dist/
-coverage/
-.DS_Store
-*.log
+build/
+
+# Environment
 .env*
 !.env.example
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
