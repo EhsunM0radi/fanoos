@@ -13,7 +13,12 @@ public class AppSettings
 
     // Audio Capture
     public string SelectedDeviceId { get; set; } = "default";
-    public string CaptureMode { get; set; } = "Microphone"; // Microphone, SystemAudio, Combined
+    public string SelectedSystemDeviceId { get; set; } = "default";
+    public string CaptureMode { get; set; } = "Combined"; // Microphone, SystemAudio, Combined
+    public double MicVolume { get; set; } = 100; // 0 - 150%
+    public double SystemAudioVolume { get; set; } = 100; // 0 - 150%
+    public bool MicMuted { get; set; } = false;
+    public bool SystemAudioMuted { get; set; } = false;
 
     // Overlay Window
     public double OverlayOpacity { get; set; } = 0.85;
@@ -25,6 +30,14 @@ public class AppSettings
     public double OverlayHeight { get; set; } = 280;
     public bool AutoScrollToBottom { get; set; } = true;
     public string Theme { get; set; } = "Light"; // Light (Translucent), Dark
+    public string TranscriptDisplayMode { get; set; } = "compact"; // compact (discreet subtitle), full, hidden
+
+    // Meeting Roles & Context (Dynamic Multi-Meeting Support)
+    public string MeetingType { get; set; } = "job_interview";
+    public string MyRole { get; set; } = "Senior Backend Engineer";
+    public string CounterpartRole { get; set; } = "Technical Hiring Manager / CTO";
+    public string MeetingGoal { get; set; } = "Demonstrate technical depth and clear communication";
+    public string ActiveCopilotLens { get; set; } = "WhatShouldISay"; // WhatShouldISay, FollowUp, TechnicalAdvice, Negotiation, Summary
 
     // LLM Provider & Config
     public LLMSettings LLMSettings { get; set; } = new();

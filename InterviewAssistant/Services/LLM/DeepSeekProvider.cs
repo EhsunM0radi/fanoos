@@ -52,18 +52,13 @@ public class DeepSeekProvider : ILLMProvider
             yield break;
         }
 
-        // Bounded retry with exponential backoff (Section 28)
+        // Bounded retry with exponential backoff on connection (Section 28)
         const int maxRetries = 3;
         int delayMs = 500;
+        HttpResponseMessage? response = null;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            HttpResponseMessage? response = null;
-            bool shouldRetry = false;
-            List<LLMChunk>? streamChunks = null;
-            bool completed = false;
-            bool streamError = false;
-
             try
             {
                 var payload = new
@@ -90,88 +85,65 @@ public class DeepSeekProvider : ILLMProvider
                 if ((int)response.StatusCode == 429 || (int)response.StatusCode == 503)
                 {
                     _logger?.LogWarning("[DeepSeek] HTTP {StatusCode}, retry {Attempt}/{MaxRetries} in {Delay}ms", response.StatusCode, attempt, maxRetries, delayMs);
-                    if (attempt == maxRetries) response.EnsureSuccessStatusCode();
+                    response.Dispose();
+                    response = null;
+                    if (attempt == maxRetries) break;
                     await Task.Delay(delayMs, cancellationToken);
                     delayMs *= 2;
-                    shouldRetry = true;
                     continue;
                 }
 
                 response.EnsureSuccessStatusCode();
-
-                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                using var reader = new StreamReader(stream);
-
-                streamChunks = new List<LLMChunk>();
-
-                while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
-                {
-                    var line = await reader.ReadLineAsync(cancellationToken);
-                    if (string.IsNullOrWhiteSpace(line)) continue;
-                    if (!line.StartsWith("data: ")) continue;
-
-                    var data = line.Substring(6).Trim();
-                    if (data == "[DONE]")
-                    {
-                        streamChunks.Add(new LLMChunk { Text = string.Empty, IsFinal = true });
-                        completed = true;
-                        break;
-                    }
-
-                    using var doc = JsonDocument.Parse(data);
-                    var choices = doc.RootElement.GetProperty("choices");
-                    if (choices.GetArrayLength() > 0)
-                    {
-                        var delta = choices[0].GetProperty("delta");
-                        if (delta.TryGetProperty("content", out var contentElem))
-                        {
-                            var token = contentElem.GetString();
-                            if (!string.IsNullOrEmpty(token))
-                            {
-                                streamChunks.Add(new LLMChunk { Text = token, IsFinal = false });
-                            }
-                        }
-                    }
-                }
-
-                completed = true;
+                break; // Successfully connected!
             }
             catch (Exception ex) when (attempt < maxRetries && !(ex is OperationCanceledException))
             {
                 _logger?.LogWarning(ex, "[DeepSeek] Error on attempt {Attempt}/{MaxRetries}: {Msg}", attempt, maxRetries, ex.Message);
+                response?.Dispose();
+                response = null;
                 await Task.Delay(delayMs, cancellationToken);
                 delayMs *= 2;
-                shouldRetry = true;
-                streamError = true;
             }
-            finally
-            {
-                response?.Dispose();
-            }
+        }
 
-            if (streamChunks != null)
+        if (response == null)
+        {
+            yield return new LLMChunk { Text = "Error: Failed to connect to DeepSeek after retries.", IsFinal = true };
+            yield break;
+        }
+
+        using (response)
+        {
+            using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream);
+
+            while (!reader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
-                foreach (var chunk in streamChunks)
+                var line = await reader.ReadLineAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                if (!line.StartsWith("data: ")) continue;
+
+                var data = line.Substring(6).Trim();
+                if (data == "[DONE]")
                 {
-                    yield return chunk;
+                    yield return new LLMChunk { Text = string.Empty, IsFinal = true };
+                    yield break;
                 }
-            }
 
-            if (completed)
-            {
-                yield break;
-            }
-
-            if (shouldRetry && attempt < maxRetries)
-            {
-                continue;
-            }
-
-            if (streamError && attempt >= maxRetries)
-            {
-                // Max retries exceeded, yield final error chunk
-                yield return new LLMChunk { Text = "Error: Max retries exceeded", IsFinal = true };
-                yield break;
+                using var doc = JsonDocument.Parse(data);
+                var choices = doc.RootElement.GetProperty("choices");
+                if (choices.GetArrayLength() > 0)
+                {
+                    var delta = choices[0].GetProperty("delta");
+                    if (delta.TryGetProperty("content", out var contentElem))
+                    {
+                        var token = contentElem.GetString();
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            yield return new LLMChunk { Text = token, IsFinal = false };
+                        }
+                    }
+                }
             }
         }
     }

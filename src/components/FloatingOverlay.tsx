@@ -8,20 +8,32 @@ import {
   Sparkles, 
   Volume2, 
   Trash2,
-  Move,
-  CheckCircle2,
-  RefreshCw,
-  Download,
-  Search,
-  ChevronUp,
-  ChevronDown,
+  Download, 
+  Search, 
+  ChevronUp, 
+  ChevronDown, 
   ArrowDownToLine,
-  Lock,
-  Unlock,
-  Sun,
-  Moon
+  Sun, 
+  Moon,
+  MessageSquare,
+  Target,
+  Zap,
+  Handshake,
+  ClipboardList,
+  Copy,
+  Check,
+  Eye,
+  EyeOff,
+  User,
+  Users
 } from 'lucide-react';
-import { TranscriptEvent, TranscriptParagraph, CopilotAnswer, ConnectionState } from '../types';
+import { 
+  TranscriptEvent, 
+  TranscriptParagraph, 
+  CopilotAnswer, 
+  ConnectionState, 
+  CopilotLens 
+} from '../types';
 
 interface FloatingOverlayProps {
   isOpen: boolean;
@@ -36,12 +48,19 @@ interface FloatingOverlayProps {
   onOpacityChange: (opacity: number) => void;
   fontSize: number;
   onFontSizeChange: (size: number) => void;
-  onTriggerCopilot: (question: string) => void;
+  onTriggerCopilot: (question: string, lens?: CopilotLens) => void;
   onDownloadTranscript: () => void;
   autoScrollToBottom: boolean;
   onToggleAutoScroll?: () => void;
   theme?: 'light' | 'dark';
   onToggleTheme?: () => void;
+  // Meeting Roles & Lenses
+  myRole?: string;
+  counterpartRole?: string;
+  activeLens?: CopilotLens;
+  onSelectLens?: (lens: CopilotLens) => void;
+  transcriptDisplayMode?: 'compact' | 'full' | 'hidden';
+  onToggleTranscriptMode?: () => void;
 }
 
 export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
@@ -63,73 +82,47 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
   onToggleAutoScroll,
   theme = 'light',
   onToggleTheme,
+  myRole = 'Senior Specialist',
+  counterpartRole = 'Interviewer / Client',
+  activeLens = 'WhatShouldISay',
+  onSelectLens,
+  transcriptDisplayMode = 'compact',
+  onToggleTranscriptMode,
 }) => {
   const [position, setPosition] = useState({ x: 28, y: 84 });
-  const [size, setSize] = useState({ width: 440, height: 380 });
+  const [size, setSize] = useState({ width: 480, height: 420 });
   const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isResizing, setIsResizing] = useState(false);
   const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, w: 0, h: 0 });
   const [isMinimized, setIsMinimized] = useState(false);
+  const [copiedAnswer, setCopiedAnswer] = useState(false);
 
-  // Search State
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  // Local Keyword Search State
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeMatchIndex, setActiveMatchIndex] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const paragraphRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const paragraphRefs = useRef<{ [id: string]: HTMLDivElement | null }>({});
 
-  // Compute matching paragraphs based on search query
-  const matchingParagraphs = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase().trim();
-    return paragraphs.filter((p) => p.text.toLowerCase().includes(q));
-  }, [paragraphs, searchQuery]);
+  const isLight = theme === 'light';
 
-  // Reset or clamp active match index
-  useEffect(() => {
-    if (matchingParagraphs.length === 0) {
-      setActiveMatchIndex(0);
-    } else if (activeMatchIndex >= matchingParagraphs.length) {
-      setActiveMatchIndex(0);
+  // Latest spoken snippet for discreet mode
+  const latestSpokenSnippet = useMemo(() => {
+    if (currentInterim) return currentInterim;
+    if (paragraphs.length > 0) {
+      const lastP = paragraphs[paragraphs.length - 1];
+      return lastP.text;
     }
-  }, [matchingParagraphs.length, activeMatchIndex]);
-
-  // Jump and scroll to active matching paragraph
-  useEffect(() => {
-    if (matchingParagraphs.length > 0 && searchQuery.trim()) {
-      const activeParagraph = matchingParagraphs[activeMatchIndex];
-      if (activeParagraph && paragraphRefs.current[activeParagraph.id]) {
-        paragraphRefs.current[activeParagraph.id]?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-        });
-      }
-    }
-  }, [activeMatchIndex, matchingParagraphs, searchQuery]);
-
-  // Focus search input when search opens
-  useEffect(() => {
-    if (isSearchOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isSearchOpen]);
-
-  // Auto-scroll transcript container to bottom when enabled and not actively searching
-  useEffect(() => {
-    if (autoScrollToBottom && !searchQuery.trim() && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [currentInterim, paragraphs, copilotAnswer, autoScrollToBottom, searchQuery]);
+    return '';
+  }, [currentInterim, paragraphs]);
 
   // Handle Dragging
   const handleMouseDown = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button, input, select, textarea, .no-drag')) {
-      return;
-    }
+    if ((e.target as HTMLElement).closest('.no-drag')) return;
     setIsDragging(true);
     setDragOffset({
       x: e.clientX - position.x,
@@ -156,8 +149,8 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
         const newY = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dragOffset.y));
         setPosition({ x: newX, y: newY });
       } else if (isResizing) {
-        const newW = Math.max(320, Math.min(800, resizeStart.w + (e.clientX - resizeStart.x)));
-        const newH = Math.max(200, Math.min(700, resizeStart.h + (e.clientY - resizeStart.y)));
+        const newW = Math.max(340, Math.min(900, resizeStart.w + (e.clientX - resizeStart.x)));
+        const newH = Math.max(240, Math.min(800, resizeStart.h + (e.clientY - resizeStart.y)));
         setSize({ width: newW, height: newH });
       }
     };
@@ -178,6 +171,27 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
     };
   }, [isDragging, isResizing, dragOffset, resizeStart]);
 
+  // Handle Lens Selection & Instant Trigger
+  const handleLensClick = (lens: CopilotLens) => {
+    onSelectLens?.(lens);
+    const questionText = latestSpokenSnippet || 'General meeting discussion';
+    onTriggerCopilot(questionText, lens);
+  };
+
+  const handleCopyAnswer = () => {
+    if (!copilotAnswer?.answer) return;
+    navigator.clipboard.writeText(copilotAnswer.answer);
+    setCopiedAnswer(true);
+    setTimeout(() => setCopiedAnswer(false), 2000);
+  };
+
+  // Filter Matching Paragraphs
+  const matchingParagraphs = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase().trim();
+    return paragraphs.filter((p) => p.text.toLowerCase().includes(q));
+  }, [searchQuery, paragraphs]);
+
   const handleNextMatch = () => {
     if (matchingParagraphs.length === 0) return;
     setActiveMatchIndex((prev) => (prev + 1) % matchingParagraphs.length);
@@ -188,24 +202,20 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
     setActiveMatchIndex((prev) => (prev - 1 + matchingParagraphs.length) % matchingParagraphs.length);
   };
 
-  // Render text with highlighted keywords
   const renderHighlightedText = (text: string, isCurrentMatch: boolean) => {
     if (!searchQuery.trim()) return text;
-
     try {
       const escaped = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`(${escaped})`, 'gi');
-      const parts = text.split(regex);
-
+      const parts = text.split(new RegExp(`(${escaped})`, 'gi'));
       return parts.map((part, i) => {
-        if (regex.test(part)) {
+        if (part.toLowerCase() === searchQuery.toLowerCase().trim()) {
           return (
             <mark
               key={i}
-              className={`rounded px-1 py-0.2 font-semibold transition-all ${
+              className={`rounded px-1 py-0.2 font-semibold ${
                 isCurrentMatch
-                  ? 'bg-amber-400 text-slate-950 shadow-sm ring-2 ring-amber-300'
-                  : 'bg-amber-400/40 text-amber-200'
+                  ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-500'
+                  : 'bg-yellow-300/80 text-slate-900'
               }`}
             >
               {part}
@@ -220,8 +230,6 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
   };
 
   if (!isOpen) return null;
-
-  const isLight = theme === 'light';
 
   return (
     <div
@@ -238,7 +246,7 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
           : 'bg-slate-950/95 border border-slate-800/80 text-slate-100'
       }`}
     >
-      {/* Titlebar / Drag Handle */}
+      {/* 1. Titlebar / Drag Handle with Meeting Roles */}
       <div
         onMouseDown={handleMouseDown}
         className={`px-3 py-2 border-b flex items-center justify-between cursor-move ${
@@ -247,9 +255,9 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
             : 'bg-slate-900/90 border-slate-800/80 text-slate-300'
         }`}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-hidden">
           {/* Status Indicator Pip */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
             <span
               className={`w-2 h-2 rounded-full ${
                 status === 'connected'
@@ -259,15 +267,26 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
                   : 'bg-slate-400'
               }`}
             />
-            <span className={`text-xs font-semibold tracking-wide ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
-              {status === 'connected' ? 'Listening' : status === 'connecting' ? 'Connecting' : 'Overlay'}
+            <span className={`text-[11px] font-semibold tracking-wide ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+              {status === 'connected' ? 'Live Copilot' : 'Connecting'}
             </span>
           </div>
-          <span className={`text-[10px] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>· Nova-3</span>
+
+          {/* Meeting Role Pill */}
+          <div className={`hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border truncate max-w-[200px] ${
+            isLight
+              ? 'bg-white/90 border-slate-200 text-slate-600 shadow-xs'
+              : 'bg-slate-950 border-slate-800 text-slate-400'
+          }`} title={`You: ${myRole} ⟷ Other Party: ${counterpartRole}`}>
+            <User size={10} className="text-blue-500 shrink-0" />
+            <span className="truncate">{myRole}</span>
+            <span className="opacity-40">⟷</span>
+            <span className="truncate text-purple-500">{counterpartRole}</span>
+          </div>
         </div>
 
         {/* Window Controls */}
-        <div className="flex items-center gap-1 no-drag">
+        <div className="flex items-center gap-1 no-drag shrink-0">
           {/* Theme Quick Toggle */}
           {onToggleTheme && (
             <button
@@ -283,42 +302,31 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
             </button>
           )}
 
-          {/* Search Toggle button */}
-          <button
-            onClick={() => {
-              setIsSearchOpen(!isSearchOpen);
-              if (isSearchOpen) setSearchQuery('');
-            }}
-            title={isSearchOpen ? 'Close Search (Esc)' : 'Search Transcript (Ctrl+F)'}
-            className={`p-1 rounded transition-colors ${
-              isSearchOpen || searchQuery
-                ? isLight
-                  ? 'bg-blue-100 text-blue-700 border border-blue-300'
-                  : 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
-                : isLight
-                ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/70'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            <Search size={13} />
-          </button>
-
-          {/* Auto-scroll Lock Toggle */}
-          {onToggleAutoScroll && (
+          {/* Toggle Transcript View Mode */}
+          {onToggleTranscriptMode && (
             <button
-              onClick={onToggleAutoScroll}
-              title={autoScrollToBottom ? 'Auto-scroll: LOCKED to latest speech' : 'Auto-scroll: UNLOCKED (free scroll)'}
-              className={`p-1 rounded transition-colors ${
-                autoScrollToBottom
+              onClick={onToggleTranscriptMode}
+              title={
+                transcriptDisplayMode === 'compact'
+                  ? 'Current: Discreet subtitle (Click for full transcript history)'
+                  : transcriptDisplayMode === 'full'
+                  ? 'Current: Full transcript history (Click to hide transcript)'
+                  : 'Current: Hidden transcript (Click for discreet subtitle)'
+              }
+              className={`p-1 rounded transition-colors flex items-center gap-0.5 text-[11px] ${
+                transcriptDisplayMode === 'full'
                   ? isLight
-                    ? 'text-emerald-600 hover:text-emerald-700 hover:bg-slate-200/70'
-                    : 'text-emerald-400 hover:text-emerald-300 hover:bg-slate-800'
+                    ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                    : 'bg-blue-900/60 text-blue-300 border border-blue-700'
                   : isLight
-                  ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-200/70'
-                  : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'
+                  ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/70'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
               }`}
             >
-              <ArrowDownToLine size={13} className={autoScrollToBottom ? 'opacity-100' : 'opacity-50'} />
+              {transcriptDisplayMode === 'hidden' ? <EyeOff size={13} /> : <Eye size={13} />}
+              <span className="text-[10px] hidden md:inline">
+                {transcriptDisplayMode === 'compact' ? 'Discreet' : transcriptDisplayMode === 'full' ? 'Full' : 'Hidden'}
+              </span>
             </button>
           )}
 
@@ -334,7 +342,7 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
           >
             <Minus size={13} />
           </button>
-          <span className={`text-[11px] font-mono px-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+          <span className={`text-[10px] font-mono px-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
             {fontSize}px
           </span>
           <button
@@ -350,33 +358,6 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
           </button>
 
           <div className={`w-[1px] h-3 mx-0.5 ${isLight ? 'bg-slate-300' : 'bg-slate-800'}`} />
-
-          {/* Download button */}
-          <button
-            onClick={onDownloadTranscript}
-            disabled={paragraphs.length === 0}
-            title={paragraphs.length > 0 ? "Download Transcript (.txt)" : "No transcript yet"}
-            className={`p-1 rounded transition-colors disabled:opacity-40 ${
-              isLight
-                ? 'text-slate-500 hover:text-emerald-600 hover:bg-slate-200/70'
-                : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800'
-            }`}
-          >
-            <Download size={13} />
-          </button>
-
-          {/* Clear button */}
-          <button
-            onClick={onClear}
-            title="Clear Transcripts"
-            className={`p-1 rounded transition-colors ${
-              isLight
-                ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/70'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            <Trash2 size={13} />
-          </button>
 
           {/* Minimize toggle */}
           <button
@@ -406,248 +387,277 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
         </div>
       </div>
 
-      {/* Local Text-Based Search Bar */}
-      {isSearchOpen && (
-        <div className={`px-3 py-2 border-b flex items-center gap-2 text-xs no-drag ${
-          isLight ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'
-        }`}>
-          <div className="relative flex-1 flex items-center">
-            <Search size={13} className={`absolute left-2.5 pointer-events-none ${isLight ? 'text-slate-400' : 'text-slate-400'}`} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setActiveMatchIndex(0);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  if (e.shiftKey) handlePrevMatch();
-                  else handleNextMatch();
-                } else if (e.key === 'Escape') {
-                  setIsSearchOpen(false);
-                  setSearchQuery('');
-                }
-              }}
-              placeholder="Search transcript keywords (Enter to jump)..."
-              className={`w-full rounded pl-7 pr-7 py-1 text-xs focus:outline-none focus:border-blue-500 ${
-                isLight
-                  ? 'bg-white border border-slate-300 text-slate-800 placeholder-slate-400'
-                  : 'bg-slate-950 border border-slate-700/80 text-slate-100 placeholder-slate-500'
-              }`}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setActiveMatchIndex(0);
-                }}
-                className={`absolute right-2 ${isLight ? 'text-slate-400 hover:text-slate-600' : 'text-slate-400 hover:text-slate-200'}`}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* Match Count & Navigation Controls */}
-          {searchQuery.trim() && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className={`text-[11px] font-mono px-1.5 py-0.5 rounded border ${
-                isLight
-                  ? 'bg-slate-100 border-slate-200 text-slate-700'
-                  : 'bg-slate-800 border-slate-700 text-slate-300'
-              }`}>
-                {matchingParagraphs.length > 0
-                  ? `${activeMatchIndex + 1}/${matchingParagraphs.length}`
-                  : '0 matches'}
-              </span>
-
-              <button
-                onClick={handlePrevMatch}
-                disabled={matchingParagraphs.length === 0}
-                title="Previous match (Shift+Enter)"
-                className={`p-1 rounded disabled:opacity-30 ${
-                  isLight
-                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
-                <ChevronUp size={14} />
-              </button>
-              <button
-                onClick={handleNextMatch}
-                disabled={matchingParagraphs.length === 0}
-                title="Next match (Enter)"
-                className={`p-1 rounded disabled:opacity-30 ${
-                  isLight
-                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-200'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-                }`}
-              >
-                <ChevronDown size={14} />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {!isMinimized && (
         <>
-          {/* Main Content Area: Transcripts & AI Copilot */}
+          {/* 2. Actionable Copilot Mode Selector (Buttons user requested: What should I say, Follow-ups, etc.) */}
+          <div className={`px-2.5 py-1.5 border-b flex items-center gap-1.5 overflow-x-auto text-xs no-drag ${
+            isLight
+              ? 'bg-slate-50/70 border-slate-200/70'
+              : 'bg-slate-900/60 border-slate-800/60'
+          }`}>
+            <span className={`text-[10px] font-bold uppercase tracking-wider shrink-0 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+              Lens:
+            </span>
+
+            {/* Lens 1: What Should I Say? */}
+            <button
+              onClick={() => handleLensClick('WhatShouldISay')}
+              title="Give me exact spoken phrasing to reply right now"
+              className={`px-2.5 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
+                activeLens === 'WhatShouldISay'
+                  ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-500'
+                  : isLight
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <MessageSquare size={12} className={activeLens === 'WhatShouldISay' ? 'text-white' : 'text-blue-500'} />
+              <span>What Should I Say?</span>
+            </button>
+
+            {/* Lens 2: Strategic Follow-Up */}
+            <button
+              onClick={() => handleLensClick('FollowUp')}
+              title="Suggest high-impact follow-up questions to ask next"
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
+                activeLens === 'FollowUp'
+                  ? 'bg-purple-600 text-white shadow-sm ring-1 ring-purple-500'
+                  : isLight
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <Target size={12} className={activeLens === 'FollowUp' ? 'text-white' : 'text-purple-400'} />
+              <span>Follow-Ups</span>
+            </button>
+
+            {/* Lens 3: Technical Advice */}
+            <button
+              onClick={() => handleLensClick('TechnicalAdvice')}
+              title="Provide deep technical critique and architecture guidance"
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
+                activeLens === 'TechnicalAdvice'
+                  ? 'bg-amber-600 text-white shadow-sm ring-1 ring-amber-500'
+                  : isLight
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <Zap size={12} className={activeLens === 'TechnicalAdvice' ? 'text-white' : 'text-amber-500'} />
+              <span>Tech Advice</span>
+            </button>
+
+            {/* Lens 4: Negotiation & Objection */}
+            <button
+              onClick={() => handleLensClick('Negotiation')}
+              title="Diplomatic phrasing, objection handling, and scope protection"
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
+                activeLens === 'Negotiation'
+                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-500'
+                  : isLight
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <Handshake size={12} className={activeLens === 'Negotiation' ? 'text-white' : 'text-emerald-500'} />
+              <span>Negotiation</span>
+            </button>
+
+            {/* Lens 5: Action Items */}
+            <button
+              onClick={() => handleLensClick('Summary')}
+              title="Recap key commitments and immediate next steps"
+              className={`px-2 py-1 rounded-md text-[11px] font-semibold flex items-center gap-1.5 transition-all shrink-0 ${
+                activeLens === 'Summary'
+                  ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-500'
+                  : isLight
+                  ? 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                  : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+              }`}
+            >
+              <ClipboardList size={12} className={activeLens === 'Summary' ? 'text-white' : 'text-indigo-400'} />
+              <span>Action Items</span>
+            </button>
+          </div>
+
+          {/* 3. Main Center Content: AI Copilot Guidance (Front & Center) */}
           <div
             ref={scrollRef}
             className="flex-1 p-3.5 overflow-y-auto space-y-3 font-sans select-text scroll-smooth"
             style={{ fontSize: `${fontSize}px` }}
           >
-            {/* Empty State */}
-            {paragraphs.length === 0 && !currentInterim && (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-500">
-                <Volume2 className="w-8 h-8 mb-2 stroke-1 text-slate-600 animate-pulse" />
-                <p className="text-xs font-medium text-slate-400">Waiting for speech...</p>
-                <p className="text-[11px] text-slate-600 mt-1 max-w-[240px]">
-                  Start interview audio to stream real-time interim speech and automatically grouped paragraphs here.
-                </p>
+            {/* If Copilot has an answer */}
+            {copilotAnswer ? (
+              <div className={`p-3.5 rounded-xl border shadow-lg space-y-2.5 transition-all ${
+                isLight
+                  ? 'bg-white/95 border-purple-200/90 text-slate-800 shadow-purple-100/50'
+                  : 'bg-gradient-to-b from-purple-950/40 to-slate-900/90 border-purple-800/50 text-slate-100'
+              }`}>
+                {/* Header with Lens Badge & Copy Button */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles size={14} className={`text-purple-500 ${copilotAnswer.isStreaming ? 'animate-spin' : ''}`} />
+                    <span className="text-[11px] font-bold tracking-wider uppercase text-purple-600">
+                      {copilotAnswer.lens === 'WhatShouldISay'
+                        ? '💬 Spoken Response'
+                        : copilotAnswer.lens === 'FollowUp'
+                        ? '🎯 Strategic Follow-Ups'
+                        : copilotAnswer.lens === 'Negotiation'
+                        ? '🤝 Negotiation & Alignment'
+                        : copilotAnswer.lens === 'TechnicalAdvice'
+                        ? '⚡ Technical Guidance'
+                        : '📋 Meeting Action Items'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={handleCopyAnswer}
+                      title="Copy advice to clipboard"
+                      className={`p-1 rounded text-[11px] flex items-center gap-1 transition-colors ${
+                        isLight
+                          ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      }`}
+                    >
+                      {copiedAnswer ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                      <span className="text-[10px]">{copiedAnswer ? 'Copied' : 'Copy'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleLensClick(activeLens)}
+                      title="Regenerate with current lens"
+                      className={`p-1 rounded text-[11px] transition-colors ${
+                        isLight
+                          ? 'text-slate-500 hover:text-purple-600 hover:bg-slate-100'
+                          : 'text-slate-400 hover:text-purple-300 hover:bg-slate-800'
+                      }`}
+                    >
+                      <Sparkles size={12} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Counterpart's Triggering Utterance / Question (Discreet italic quote) */}
+                {copilotAnswer.question && (
+                  <div className={`text-xs italic border-l-2 pl-2 py-0.5 line-clamp-2 ${
+                    isLight ? 'border-purple-300 text-purple-900/80' : 'border-purple-600/60 text-purple-200/80'
+                  }`}>
+                    "{copilotAnswer.question}"
+                  </div>
+                )}
+
+                {/* The Formatted Generated Answer */}
+                <div className={`text-xs space-y-1.5 leading-relaxed whitespace-pre-wrap font-sans ${
+                  isLight ? 'text-slate-800' : 'text-slate-200'
+                }`}>
+                  {copilotAnswer.answer || (
+                    <span className="italic text-purple-400 animate-pulse">Generating tailored response...</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* Empty / Idle State: Ready with Quick Action Callouts */
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  isLight ? 'bg-blue-50 text-blue-600' : 'bg-slate-900 text-blue-400'
+                }`}>
+                  <MessageSquare size={18} />
+                </div>
+                <div>
+                  <p className={`text-xs font-bold ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    Real-Time Meeting Copilot
+                  </p>
+                  <p className={`text-[11px] max-w-[280px] mt-1 ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Listening to speech. Click any lens above or let auto-trigger deliver immediate spoken advice.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => handleLensClick('WhatShouldISay')}
+                  className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition-all"
+                >
+                  <Sparkles size={13} />
+                  <span>Suggest "What Should I Say" Now</span>
+                </button>
               </div>
             )}
 
-            {/* Committed Final Transcripts (Grouped into Paragraphs) */}
-            {paragraphs.map((item) => {
-              const isInterviewerQuestion = 
-                item.text.endsWith('?') || 
-                item.text.toLowerCase().includes('tell me about') ||
-                item.text.toLowerCase().includes('explain') ||
-                item.text.toLowerCase().includes('how do you');
-
-              const isMatch = searchQuery.trim() !== '' && item.text.toLowerCase().includes(searchQuery.toLowerCase().trim());
-              const isCurrentActiveMatch = isMatch && matchingParagraphs[activeMatchIndex]?.id === item.id;
-
-              const timeSpan = item.startTime === item.endTime
-                ? item.startTime
-                : `${item.startTime} – ${item.endTime}`;
-
-              return (
-                <div
-                  key={item.id}
-                  ref={(el) => {
-                    paragraphRefs.current[item.id] = el;
-                  }}
-                  className={`group relative transition-all p-2.5 rounded-lg border ${
-                    isCurrentActiveMatch
-                      ? isLight
-                        ? 'bg-amber-100/90 border-amber-500 shadow-md ring-1 ring-amber-500/50'
-                        : 'bg-amber-950/30 border-amber-500/80 shadow-md ring-1 ring-amber-500/40'
-                      : isMatch
-                      ? isLight
-                        ? 'bg-amber-50 border-amber-400/60'
-                        : 'bg-amber-950/15 border-amber-600/40'
-                      : isLight
-                      ? 'bg-white/70 border-slate-200/80 hover:border-slate-300/90 shadow-sm'
-                      : 'bg-slate-900/40 border-slate-800/40 hover:border-slate-700/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                      isLight
-                        ? 'text-slate-600 bg-slate-100/90 border-slate-200'
-                        : 'text-slate-400 bg-slate-950 border-slate-800'
-                    }`}>
-                      {timeSpan}
-                    </span>
-                    <span className={`text-[10px] font-medium ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-                      {item.speaker}
-                    </span>
-                    {isInterviewerQuestion && (
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${
-                        isLight
-                          ? 'bg-purple-100 text-purple-800 border-purple-200'
-                          : 'bg-purple-950/70 text-purple-300 border-purple-800/50'
-                      }`}>
-                        Question Detected
-                      </span>
-                    )}
-                    {isCurrentActiveMatch && (
-                      <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 font-bold ml-auto">
-                        Current Match
-                      </span>
-                    )}
-                  </div>
-                  <p className={`leading-relaxed font-normal ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
-                    {renderHighlightedText(item.text, isCurrentActiveMatch)}
-                  </p>
-
-                  {/* Manual Copilot Trigger for this paragraph */}
+            {/* If Full Transcript Mode is Selected: Show Full History Here */}
+            {transcriptDisplayMode === 'full' && (
+              <div className={`mt-4 pt-3 border-t space-y-2.5 ${isLight ? 'border-slate-200' : 'border-slate-800'}`}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className={`font-bold text-[11px] uppercase tracking-wider ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Transcript History ({paragraphs.length})
+                  </span>
                   <button
-                    onClick={() => onTriggerCopilot(item.text)}
-                    className={`opacity-0 group-hover:opacity-100 transition-opacity absolute right-2 top-2 text-[10px] flex items-center gap-1 px-2 py-0.5 rounded border shadow-sm ${
-                      isLight
-                        ? 'text-purple-700 bg-purple-100 hover:bg-purple-200 border-purple-300'
-                        : 'text-purple-300 hover:text-purple-200 bg-purple-950/80 hover:bg-purple-900 border-purple-700/60'
-                    }`}
+                    onClick={onToggleTranscriptMode}
+                    className={`text-[10px] ${isLight ? 'text-blue-600 hover:underline' : 'text-blue-400 hover:underline'}`}
                   >
-                    <Sparkles size={11} />
-                    <span>Get Answer</span>
+                    Switch to Discreet Subtitle
                   </button>
                 </div>
-              );
-            })}
 
-            {/* Active Interim Results Stream */}
-            {currentInterim && (
-              <div className={`p-2 rounded-lg transition-all border ${
-                isLight
-                  ? 'bg-sky-50/90 border-sky-300/80 text-sky-900'
-                  : 'bg-sky-950/30 border-sky-800/40 text-sky-300'
-              }`}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-ping" />
-                  <span className={`text-[10px] font-mono font-bold tracking-wider uppercase ${isLight ? 'text-sky-700' : 'text-sky-400'}`}>
-                    CURRENT SPEECH:
-                  </span>
-                </div>
-                <p className={`italic font-medium leading-relaxed ${isLight ? 'text-sky-800' : 'text-sky-300'}`}>
-                  {currentInterim}
-                </p>
-              </div>
-            )}
-
-            {/* AI Copilot Answer Card */}
-            {copilotAnswer && (
-              <div className={`p-3 rounded-lg border shadow-lg space-y-2 mt-2 ${
-                isLight
-                  ? 'bg-purple-50/90 border-purple-200/90 text-slate-800 shadow-purple-100/50'
-                  : 'bg-gradient-to-b from-purple-950/40 to-slate-900/80 border-purple-800/50 text-slate-100'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className={`flex items-center gap-1.5 ${isLight ? 'text-purple-800' : 'text-purple-300'}`}>
-                    <Sparkles size={13} className={copilotAnswer.isStreaming ? 'animate-spin' : ''} />
-                    <span className="text-[11px] font-bold tracking-wider uppercase">
-                      AI Interview Copilot
-                    </span>
+                {paragraphs.map((item) => (
+                  <div
+                    key={item.id}
+                    className={`p-2 rounded-lg border text-xs ${
+                      isLight
+                        ? 'bg-white/80 border-slate-200 text-slate-800'
+                        : 'bg-slate-900/40 border-slate-800 text-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1 text-[10px] text-slate-400">
+                      <span>{item.startTime}</span>
+                      <span className="font-semibold">{item.speaker}</span>
+                    </div>
+                    <p className="leading-relaxed">{item.text}</p>
                   </div>
-                  <span className={`text-[10px] font-mono ${isLight ? 'text-purple-600' : 'text-purple-400/80'}`}>
-                    {copilotAnswer.isStreaming ? 'Streaming...' : 'STAR Advice'}
-                  </span>
-                </div>
-
-                <div className={`text-xs italic border-l-2 pl-2 py-0.5 ${
-                  isLight
-                    ? 'border-purple-400 text-purple-900'
-                    : 'border-purple-600/60 text-purple-200/90'
-                }`}>
-                  "{copilotAnswer.question}"
-                </div>
-
-                <div className={`text-xs space-y-1 leading-relaxed whitespace-pre-wrap font-sans ${
-                  isLight ? 'text-slate-700' : 'text-slate-200'
-                }`}>
-                  {copilotAnswer.answer}
-                </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Bottom Bar: Opacity quick slider & resize handle */}
+          {/* 4. Discreet Subtitle Bar (User requirement: ترنسکریپت فقط یه تیکه آخرش باشه و خیلی تو دید نباشه) */}
+          {transcriptDisplayMode === 'compact' && (
+            <div className={`px-3 py-1.5 border-t flex items-center gap-2 text-xs transition-all ${
+              isLight
+                ? 'bg-slate-50/90 border-slate-200/80 text-slate-700'
+                : 'bg-slate-950/80 border-slate-800/80 text-slate-400'
+            }`}>
+              <div className="flex items-center gap-1 shrink-0 text-slate-400">
+                <Volume2 size={12} className={currentInterim ? 'text-blue-500 animate-pulse' : 'text-slate-400'} />
+                <span className="text-[10px] font-mono uppercase tracking-wider font-semibold">Latest:</span>
+              </div>
+
+              <div className="flex-1 truncate text-[11px]">
+                {currentInterim ? (
+                  <span className={`italic font-medium ${isLight ? 'text-blue-600' : 'text-sky-300'}`}>
+                    {currentInterim}
+                  </span>
+                ) : latestSpokenSnippet ? (
+                  <span className={`truncate ${isLight ? 'text-slate-700' : 'text-slate-300'}`}>
+                    "{latestSpokenSnippet}"
+                  </span>
+                ) : (
+                  <span className="italic opacity-50">Listening for speech...</span>
+                )}
+              </div>
+
+              {/* Quick expand button to see full transcript if needed */}
+              <button
+                onClick={onToggleTranscriptMode}
+                title="Expand full transcript history"
+                className={`p-1 rounded text-[10px] shrink-0 ${
+                  isLight ? 'hover:bg-slate-200 text-slate-500' : 'hover:bg-slate-800 text-slate-400'
+                }`}
+              >
+                <ChevronUp size={12} />
+              </button>
+            </div>
+          )}
+
+          {/* 5. Bottom Toolbar: Opacity quick slider & resize handle */}
           <div className={`px-3 py-1.5 border-t flex items-center justify-between text-xs ${
             isLight
               ? 'bg-slate-50/80 border-slate-200/80 text-slate-600'
@@ -664,7 +674,7 @@ export const FloatingOverlay: React.FC<FloatingOverlayProps> = ({
                 step="0.05"
                 value={opacity}
                 onChange={(e) => onOpacityChange(parseFloat(e.target.value))}
-                className={`w-16 h-1 rounded-lg appearance-none cursor-pointer accent-purple-600 ${
+                className={`w-14 h-1 rounded-lg appearance-none cursor-pointer accent-purple-600 ${
                   isLight ? 'bg-slate-200' : 'bg-slate-700'
                 }`}
               />

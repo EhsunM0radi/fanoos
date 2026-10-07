@@ -14,7 +14,11 @@ import {
   Terminal,
   ExternalLink,
   Download,
-  FileText
+  FileText,
+  Users,
+  Headphones,
+  VolumeX,
+  Sliders
 } from 'lucide-react';
 import { AppSettings, ConnectionState, AudioDevice } from '../types';
 
@@ -31,6 +35,9 @@ interface MainWindowProps {
   selectedDeviceId: string;
   onSelectDevice: (id: string) => void;
   audioVolume: number;
+  micVolumeLevel?: number;
+  systemVolumeLevel?: number;
+  onUpdateAudioSettings?: (updates: Partial<AppSettings>) => void;
   onSimulateSpeech: () => void;
   isSimulating: boolean;
   onOpenCodeExplorer: () => void;
@@ -54,6 +61,9 @@ export const MainWindow: React.FC<MainWindowProps> = ({
   selectedDeviceId,
   onSelectDevice,
   audioVolume,
+  micVolumeLevel = 0,
+  systemVolumeLevel = 0,
+  onUpdateAudioSettings,
   onSimulateSpeech,
   isSimulating,
   onOpenCodeExplorer,
@@ -185,6 +195,50 @@ export const MainWindow: React.FC<MainWindowProps> = ({
           </div>
         </div>
 
+        {/* Active Meeting Context & Dynamic Roles Banner */}
+        <div className={`p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs transition-all ${
+          isLight
+            ? 'bg-blue-50/70 border-blue-200/80 text-slate-800'
+            : 'bg-blue-950/20 border-blue-900/50 text-slate-300'
+        }`}>
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-lg ${isLight ? 'bg-blue-100 text-blue-700' : 'bg-blue-900/40 text-blue-400'}`}>
+              <Users size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm">
+                  {settings.meetingType === 'job_interview' ? 'Technical Job Interview' :
+                   settings.meetingType === 'client_meeting' ? 'Client Pitch & Scoping' :
+                   settings.meetingType === 'negotiation' ? 'Contract & Rate Negotiation' :
+                   settings.meetingType === 'architecture_review' ? 'Architecture Review' :
+                   settings.meetingType === 'team_sync' ? 'Team Sync & 1-on-1' : 'Custom Meeting'}
+                </span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                  isLight ? 'bg-blue-200/80 text-blue-900' : 'bg-blue-900/60 text-blue-300'
+                }`}>
+                  Active Lens: {settings.activeCopilotLens || 'WhatShouldISay'}
+                </span>
+              </div>
+              <p className={`text-[11px] mt-0.5 ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
+                <strong>You:</strong> {settings.myRole || 'Specialist'} · <strong>Counterpart:</strong> {settings.counterpartRole || 'Other Party'}
+                {settings.meetingGoal && <span> · <em>{settings.meetingGoal}</em></span>}
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onOpenSettings}
+            className={`px-3 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
+              isLight
+                ? 'bg-white hover:bg-slate-50 text-blue-700 border-blue-300 shadow-xs'
+                : 'bg-slate-900 hover:bg-slate-800 text-blue-300 border-blue-800'
+            }`}
+          >
+            <span>Change Roles &amp; Lens</span>
+          </button>
+        </div>
+
         {/* Configuration Sections Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Speech Engine Configuration Card */}
@@ -225,7 +279,7 @@ export const MainWindow: React.FC<MainWindowProps> = ({
             </div>
           </div>
 
-          {/* Audio Input Configuration Card */}
+          {/* Dual-Channel Audio Mixer Card (You & Counterpart) */}
           <div className={`p-4 rounded-lg border space-y-3 ${
             isLight
               ? 'bg-white/85 border-slate-200/80 shadow-sm'
@@ -234,55 +288,170 @@ export const MainWindow: React.FC<MainWindowProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold uppercase tracking-wider">
                 <Mic size={14} />
-                <span>Audio Capture</span>
+                <span>Dual Audio Mixer</span>
               </div>
               <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
                 isLight ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-emerald-950 text-emerald-300'
               }`}>
-                16kHz PCM
+                Both Sides Adjustable
               </span>
             </div>
 
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className={`block mb-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Microphone Input:</label>
-                <select
-                  value={selectedDeviceId}
-                  onChange={(e) => onSelectDevice(e.target.value)}
-                  disabled={isInterviewActive}
-                  className={`w-full rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-60 border ${
-                    isLight
-                      ? 'bg-slate-50 border-slate-300 text-slate-800'
-                      : 'bg-slate-900 border-slate-800 text-slate-200'
+            {/* Mode Selector Toggle */}
+            <div className="flex items-center gap-1 p-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px]">
+              {(['Combined', 'Microphone', 'SystemAudio'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => onUpdateAudioSettings?.({ captureMode: mode })}
+                  className={`flex-1 py-1 rounded text-center font-medium transition-all ${
+                    settings.captureMode === mode
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : isLight
+                      ? 'text-slate-600 hover:text-slate-900'
+                      : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <option value="default">Default System Microphone</option>
-                  {audioDevices.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name || `Microphone ${d.id.slice(0, 5)}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                  {mode === 'Combined' ? 'Combined (Both)' : mode === 'Microphone' ? 'You (Mic Only)' : 'Counterpart (System)'}
+                </button>
+              ))}
+            </div>
 
-              <div className={`flex items-center justify-between py-1 border-b ${isLight ? 'border-slate-100' : 'border-slate-800/50'}`}>
-                <span className={isLight ? 'text-slate-500' : 'text-slate-400'}>Capture Mode:</span>
-                <span className={`font-medium ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>{settings.captureMode}</span>
-              </div>
-
-              {/* Real-time Audio Level Bar */}
-              <div className="space-y-1">
-                <div className={`flex items-center justify-between text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                  <span>Input Signal:</span>
-                  <span className="font-mono">{isInterviewActive ? `${audioVolume}%` : 'Off'}</span>
-                </div>
-                <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
-                  <div
-                    className={`h-full transition-all duration-75 ${
-                      audioVolume > 70 ? 'bg-amber-500' : 'bg-emerald-500'
+            <div className="space-y-3 text-xs pt-1">
+              {/* Channel 1: You (Microphone / Headset) */}
+              <div className={`p-2.5 rounded-lg border space-y-2 ${
+                isLight ? 'bg-slate-50/70 border-slate-200/80' : 'bg-slate-900/60 border-slate-800/70'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Headphones size={13} className="text-blue-500" />
+                    <span>Channel 1: You (Mic / Headset)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateAudioSettings?.({ micMuted: !settings.micMuted })}
+                    className={`p-1 rounded text-[10px] flex items-center gap-1 transition-colors ${
+                      settings.micMuted
+                        ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+                        : isLight
+                        ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/70'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
                     }`}
-                    style={{ width: `${isInterviewActive ? audioVolume : 0}%` }}
-                  />
+                    title={settings.micMuted ? 'Unmute your microphone' : 'Mute your microphone'}
+                  >
+                    {settings.micMuted ? <MicOff size={12} /> : <Mic size={12} />}
+                    <span>{settings.micMuted ? 'Muted' : 'Active'}</span>
+                  </button>
+                </div>
+
+                <div>
+                  <select
+                    value={selectedDeviceId}
+                    onChange={(e) => onSelectDevice(e.target.value)}
+                    disabled={isInterviewActive}
+                    className={`w-full rounded px-2 py-1 text-xs focus:outline-none focus:border-blue-500 disabled:opacity-60 border ${
+                      isLight
+                        ? 'bg-white border-slate-300 text-slate-800'
+                        : 'bg-slate-950 border-slate-800 text-slate-200'
+                    }`}
+                  >
+                    <option value="default">Default System Microphone / Headset</option>
+                    {audioDevices.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name || `Microphone ${d.id.slice(0, 5)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Volume Gain Slider & Level Meter */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <span>Gain:</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="150"
+                        step="5"
+                        value={settings.micVolume}
+                        onChange={(e) => onUpdateAudioSettings?.({ micVolume: parseInt(e.target.value) })}
+                        className="w-20 h-1 rounded-lg appearance-none cursor-pointer accent-blue-600 bg-slate-200 dark:bg-slate-700 ml-1"
+                      />
+                      <span className="font-mono text-[10px]">{settings.micVolume}%</span>
+                    </span>
+                    <span className="font-mono">{isInterviewActive && !settings.micMuted ? `${micVolumeLevel}%` : 'Off'}</span>
+                  </div>
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
+                    <div
+                      className={`h-full transition-all duration-75 ${
+                        micVolumeLevel > 70 ? 'bg-amber-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${isInterviewActive && !settings.micMuted ? micVolumeLevel : 0}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Channel 2: Counterpart (System Audio / Meeting App Loopback) */}
+              <div className={`p-2.5 rounded-lg border space-y-2 ${
+                isLight ? 'bg-slate-50/70 border-slate-200/80' : 'bg-slate-900/60 border-slate-800/70'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <Volume2 size={13} className="text-purple-500" />
+                    <span>Channel 2: Counterpart (System Audio)</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateAudioSettings?.({ systemAudioMuted: !settings.systemAudioMuted })}
+                    className={`p-1 rounded text-[10px] flex items-center gap-1 transition-colors ${
+                      settings.systemAudioMuted
+                        ? 'bg-red-500/15 text-red-500 border border-red-500/30'
+                        : isLight
+                        ? 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/70'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                    }`}
+                    title={settings.systemAudioMuted ? 'Unmute counterpart audio' : 'Mute counterpart audio'}
+                  >
+                    {settings.systemAudioMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+                    <span>{settings.systemAudioMuted ? 'Muted' : 'Active'}</span>
+                  </button>
+                </div>
+
+                <div className={`text-[11px] px-2 py-1 rounded border flex items-center justify-between ${
+                  isLight ? 'bg-white border-slate-200 text-slate-600' : 'bg-slate-950 border-slate-800 text-slate-400'
+                }`}>
+                  <span>Zoom / Teams / Meet (WASAPI Loopback)</span>
+                  <span className="text-[10px] font-mono text-purple-500 font-semibold">16kHz WASAPI</span>
+                </div>
+
+                {/* Counterpart Volume Gain Slider & Level Meter */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1">
+                      <span>Gain:</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="150"
+                        step="5"
+                        value={settings.systemAudioVolume}
+                        onChange={(e) => onUpdateAudioSettings?.({ systemAudioVolume: parseInt(e.target.value) })}
+                        className="w-20 h-1 rounded-lg appearance-none cursor-pointer accent-purple-600 bg-slate-200 dark:bg-slate-700 ml-1"
+                      />
+                      <span className="font-mono text-[10px]">{settings.systemAudioVolume}%</span>
+                    </span>
+                    <span className="font-mono">{isInterviewActive && !settings.systemAudioMuted ? `${systemVolumeLevel}%` : 'Off'}</span>
+                  </div>
+                  <div className={`w-full h-1.5 rounded-full overflow-hidden ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>
+                    <div
+                      className={`h-full transition-all duration-75 ${
+                        systemVolumeLevel > 70 ? 'bg-amber-500' : 'bg-purple-500'
+                      }`}
+                      style={{ width: `${isInterviewActive && !settings.systemAudioMuted ? systemVolumeLevel : 0}%` }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

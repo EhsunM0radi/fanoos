@@ -21,7 +21,8 @@ import {
   ConnectionState, 
   AudioDevice, 
   CopilotAnswer,
-  LLMSessionMetrics
+  LLMSessionMetrics,
+  CopilotLens
 } from './types';
 import { BrowserAudioCapture } from './services/audioCapture';
 import { DeepgramLiveClient } from './services/deepgramLive';
@@ -42,9 +43,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   smartFormatting: true,
   endpointingMs: 300,
 
-  // Audio
+  // Audio (Dual Channel: Mic & System Audio)
   selectedDeviceId: 'default',
-  captureMode: 'Microphone',
+  selectedSystemDeviceId: 'default',
+  captureMode: 'Combined',
+  micVolume: 100,
+  systemAudioVolume: 100,
+  micMuted: false,
+  systemAudioMuted: false,
 
   // Overlay & Appearance (Default: Light & Translucent as requested)
   overlayOpacity: 0.88,
@@ -52,6 +58,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   alwaysOnTop: true,
   autoScrollToBottom: true,
   theme: 'light',
+
+  // Meeting Context & Roles
+  meetingType: 'job_interview',
+  myRole: 'Senior Backend Engineer',
+  counterpartRole: 'Technical Hiring Manager / CTO',
+  meetingGoal: 'Demonstrate architecture, low-latency streaming, and clear communication',
+  transcriptDisplayMode: 'compact',
+  activeCopilotLens: 'WhatShouldISay',
 
   // LLM Engine
   llmProvider: 'DeepSeek',
@@ -96,6 +110,8 @@ export default function App() {
   const [paragraphs, setParagraphs] = useState<TranscriptParagraph[]>([]);
   const [copilotAnswer, setCopilotAnswer] = useState<CopilotAnswer | null>(null);
   const [audioVolume, setAudioVolume] = useState(0);
+  const [micVolumeLevel, setMicVolumeLevel] = useState(0);
+  const [systemVolumeLevel, setSystemVolumeLevel] = useState(0);
   const [isOverlayOpen, setIsOverlayOpen] = useState(true);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -157,9 +173,15 @@ export default function App() {
       deepgramClient.sendAudio(chunk);
     });
 
-    // Hook up audio volume meter
+    // Hook up audio volume meters (Dual-channel)
     audioCapture.onVolume((vol) => {
       setAudioVolume(vol);
+    });
+    audioCapture.onMicVolume((vol) => {
+      setMicVolumeLevel(vol);
+    });
+    audioCapture.onSystemVolume((vol) => {
+      setSystemVolumeLevel(vol);
     });
 
     // Hook up Deepgram transcripts into reactive store & scheduler
@@ -249,7 +271,8 @@ export default function App() {
 
   const handleTriggerCopilot = async (
     question: string, 
-    triggerSource: 'Automatic' | 'SpeechFinal' | 'QuestionDetection' | 'Debounced' | 'Manual' = 'Manual'
+    triggerSource: 'Automatic' | 'SpeechFinal' | 'QuestionDetection' | 'Debounced' | 'Manual' = 'Manual',
+    lens?: CopilotLens
   ) => {
     const contextLines = paragraphs.slice(-3).map((p) => p.text);
     await llmSchedulerRef.current.scheduleTrigger(
@@ -257,7 +280,8 @@ export default function App() {
       contextLines,
       settings,
       triggerSource,
-      (answer) => setCopilotAnswer(answer)
+      (answer) => setCopilotAnswer(answer),
+      lens || settings.activeCopilotLens || 'WhatShouldISay'
     );
   };
 
@@ -562,12 +586,23 @@ export default function App() {
           onOpacityChange={(op) => saveSettings({ ...settings, overlayOpacity: op })}
           fontSize={settings.overlayFontSize}
           onFontSizeChange={(fs) => saveSettings({ ...settings, overlayFontSize: fs })}
-          onTriggerCopilot={(q) => handleTriggerCopilot(q, 'Manual')}
+          onTriggerCopilot={(q, lens) => handleTriggerCopilot(q, 'Manual', lens)}
           onDownloadTranscript={handleDownloadTranscript}
           autoScrollToBottom={settings.autoScrollToBottom !== false}
           onToggleAutoScroll={handleToggleAutoScroll}
           theme={settings.theme}
           onToggleTheme={handleToggleTheme}
+          myRole={settings.myRole}
+          counterpartRole={settings.counterpartRole}
+          activeLens={settings.activeCopilotLens}
+          onSelectLens={(lens) => saveSettings({ ...settings, activeCopilotLens: lens })}
+          transcriptDisplayMode={settings.transcriptDisplayMode}
+          onToggleTranscriptMode={() => {
+            const modes: Array<'compact' | 'full' | 'hidden'> = ['compact', 'full', 'hidden'];
+            const currentIdx = modes.indexOf(settings.transcriptDisplayMode || 'compact');
+            const nextMode = modes[(currentIdx + 1) % modes.length];
+            saveSettings({ ...settings, transcriptDisplayMode: nextMode });
+          }}
         />
       </main>
 

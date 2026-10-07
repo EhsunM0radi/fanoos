@@ -62,7 +62,17 @@ app.post('/api/deepgram/test', async (req, res) => {
 
 // Real-time Copilot streaming response using Gemini 3.8 Flash
 app.post('/api/copilot/stream', async (req, res) => {
-  const { question, context, candidateProfile, answerStyle } = req.body;
+  const { 
+    question, 
+    context, 
+    candidateProfile, 
+    answerStyle, 
+    myRole, 
+    counterpartRole, 
+    meetingGoal, 
+    meetingType, 
+    lens = 'WhatShouldISay' 
+  } = req.body;
   if (!question) {
     return res.status(400).json({ error: 'Question is required' });
   }
@@ -72,48 +82,113 @@ app.post('/api/copilot/stream', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
+  const resolvedMyRole = myRole || candidateProfile?.role || 'Senior Software Engineer / Specialist';
+  const resolvedCounterpartRole = counterpartRole || 'Interviewer / Client Stakeholder';
+  const resolvedGoal = meetingGoal || 'Deliver maximum impact, build rapport, and reach mutual agreement';
+
   if (!ai) {
-    // Graceful fallback advice if GEMINI_API_KEY is not configured
-    const fallbackAnswer = [
-      "💡 Key Talking Points:\n",
-      "• Direct Answer: Outline the core architecture and key trade-offs in 2-3 sentences.\n",
-      "• STAR Method: State the Situation, Task, Action you took, and measurable Results.\n",
-      "• Deepgram & .NET: Highlight 16kHz PCM streaming and WebSocket zero-latency pipeline.\n",
-      "• Edge Cases: Mention error handling, thread safety, and resource cleanup.\n"
-    ];
+    // Graceful fallback advice tailored to the chosen lens if GEMINI_API_KEY is not configured
+    let fallbackAnswer: string[] = [];
+
+    switch (lens) {
+      case 'WhatShouldISay':
+        fallbackAnswer = [
+          "💬 **What You Should Say Right Now:**\n\n",
+          `"Based on our objectives, I recommend focusing on measurable ROI first. For instance, in our architecture we decoupled the streaming layer using WebSockets and 16kHz PCM, reducing latency by over 45%."\n\n`,
+          "• *Quick Pivot:* \"How does that timeline align with your team's current delivery milestone?\""
+        ];
+        break;
+      case 'FollowUp':
+        fallbackAnswer = [
+          "🎯 **Strategic Follow-Up Questions:**\n\n",
+          `• \"What would success look like for this milestone in the next 30 days?\"\n`,
+          `• \"Are there any regulatory or architectural constraints on your side we should factor in early?\"\n`,
+          `• \"Who else on your side needs to sign off on this technical proposal?\"`
+        ];
+        break;
+      case 'Negotiation':
+        fallbackAnswer = [
+          "🤝 **Diplomatic Negotiation Guidance:**\n\n",
+          `• **Value Framing:** Re-emphasize that reliability and low latency save substantial cloud costs downstream.\n`,
+          `• **Objection Handling:** \"I understand budget is sensitive here. If we phase the delivery in two sprints, we can lower initial risk while hitting the core deadline.\"\n`,
+          `• **Boundary:** Avoid agreeing to unpaid scope creep without adjusting milestone dates.`
+        ];
+        break;
+      case 'TechnicalAdvice':
+        fallbackAnswer = [
+          "⚡ **Technical Advice & Architectural Considerations:**\n\n",
+          "• **Architecture:** Recommend asynchronous streaming over polling to keep memory bounded.\n",
+          "• **Resilience:** Mention exponential backoff retry and circuit-breaking for third-party webhooks.\n",
+          "• **Trade-off:** Point out that in-memory buffering reduces I/O pressure at the cost of transient RAM."
+        ];
+        break;
+      case 'Summary':
+      default:
+        fallbackAnswer = [
+          "📋 **Meeting Recap & Action Items:**\n\n",
+          "• **Agreement 1:** Finalize API contract and streaming buffer specifications.\n",
+          "• **Agreement 2:** Deliver prototype demo by end of week.\n",
+          "• **Next Step:** Schedule 20-min technical sync with counterpart architecture team."
+        ];
+        break;
+    }
 
     for (const chunk of fallbackAnswer) {
-      res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
-      await new Promise(r => setTimeout(r, 60));
+      res.write(`data: ${JSON.stringify({ text: chunk, lens })}\n\n`);
+      await new Promise(r => setTimeout(r, 50));
     }
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, lens })}\n\n`);
     res.end();
     return;
   }
 
   try {
-    const role = candidateProfile?.role || 'Senior Backend Engineer';
-    const skills = candidateProfile?.skills || '.NET, C#, Distributed Systems, WebSockets';
-    const style = answerStyle || 'Natural';
+    let lensPrompt = '';
+    switch (lens) {
+      case 'WhatShouldISay':
+        lensPrompt = `GOAL: Give the user the exact spoken words to say right now out loud to the counterpart.
+Format:
+1. "Spoken Response" (1-3 conversational, highly professional, confident sentences ready to speak out loud).
+2. 1 Quick Follow-Up Question to throw the ball back into their court.`;
+        break;
+      case 'FollowUp':
+        lensPrompt = `GOAL: Suggest 3 powerful, strategic follow-up questions to ask the counterpart next to deepen alignment, discover hidden requirements, or take control of the meeting.`;
+        break;
+      case 'Negotiation':
+        lensPrompt = `GOAL: Provide diplomatic positioning, objection handling, or negotiation guidance. Help the user defend their value, address pushback politely, or protect scope and deadlines.`;
+        break;
+      case 'TechnicalAdvice':
+        lensPrompt = `GOAL: Provide a rapid technical critique, architectural considerations, performance bottlenecks, and trade-offs to keep in mind.`;
+        break;
+      case 'Summary':
+        lensPrompt = `GOAL: Provide a 3-bullet executive summary of key agreements and immediate action items.`;
+        break;
+      default:
+        lensPrompt = `GOAL: Provide brief, high-impact bulleted talking points tailored to the user's role.`;
+        break;
+    }
 
-    const systemPrompt = `You are an elite, discreet real-time AI Interview Copilot.
-The user is participating in a high-stakes technical or behavioral interview.
-Candidate Profile: Role: ${role}, Skills: ${skills}.
-Answer Style: ${style}.
+    const systemPrompt = `You are an elite, discreet real-time Meeting Copilot.
+MEETING CONTEXT:
+- Meeting Type: ${meetingType || 'Professional Meeting'}
+- My Role: ${resolvedMyRole}
+- Counterpart Role: ${resolvedCounterpartRole}
+- Primary Objective: ${resolvedGoal}
+- Preferred Tone: ${answerStyle || 'Natural'}
 
-A question was just asked by the interviewer:
+LATEST SPEECH / QUESTION FROM COUNTERPART:
 "${question}"
 
-Conversation Context so far:
-${context ? context.slice(-5).join('\n') : 'No prior context'}
+RECENT CONVERSATION TRANSCRIPT:
+${context ? context.slice(-4).join('\n') : 'No prior context'}
 
 TASK:
-Provide brief, high-impact bulleted talking points that the user can glance at instantly and speak naturally.
-Structure:
-1. Quick Direct Hook (1 sentence)
-2. 3-4 Key Talking Points (with concrete technical keywords, metrics, or STAR bullet)
-3. 1 Pro Tip or Trade-off
-Format with clean markdown bullets. Keep it concise (under 120 words total). Never ramble.`;
+${lensPrompt}
+
+RULES:
+- Keep it concise, punchy, and instantly readable while the user is actively speaking (under 100 words total).
+- Match the user's role (${resolvedMyRole}) when talking to (${resolvedCounterpartRole}).
+- Use clean formatting with markdown.`;
 
     const stream = await ai.models.generateContentStream({
       model: 'gemini-3.8-flash',
@@ -122,15 +197,15 @@ Format with clean markdown bullets. Keep it concise (under 120 words total). Nev
 
     for await (const chunk of stream) {
       if (chunk.text) {
-        res.write(`data: ${JSON.stringify({ text: chunk.text })}\n\n`);
+        res.write(`data: ${JSON.stringify({ text: chunk.text, lens })}\n\n`);
       }
     }
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, lens })}\n\n`);
     res.end();
   } catch (err: any) {
     console.error('Gemini copilot error:', err);
-    res.write(`data: ${JSON.stringify({ error: err.message || 'Generation error', done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ error: err.message || 'Generation error', done: true, lens })}\n\n`);
     res.end();
   }
 });

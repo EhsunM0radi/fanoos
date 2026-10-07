@@ -1,4 +1,4 @@
-import { AppSettings, LLMSessionMetrics, CopilotAnswer } from '../types';
+import { AppSettings, LLMSessionMetrics, CopilotAnswer, CopilotLens } from '../types';
 
 export class ClientLLMRequestScheduler {
   private activeAbortController: AbortController | null = null;
@@ -57,7 +57,8 @@ export class ClientLLMRequestScheduler {
     contextLines: string[],
     settings: AppSettings,
     triggerSource: 'Automatic' | 'SpeechFinal' | 'QuestionDetection' | 'Debounced' | 'Manual',
-    onAnswerUpdate: (answer: CopilotAnswer) => void
+    onAnswerUpdate: (answer: CopilotAnswer) => void,
+    lens?: CopilotLens
   ): Promise<boolean> {
     const cleanQ = question.trim();
 
@@ -104,20 +105,21 @@ export class ClientLLMRequestScheduler {
       return new Promise((resolve) => {
         this.debounceTimer = window.setTimeout(async () => {
           this.debounceTimer = null;
-          const res = await this.executeLLMRequest(cleanQ, contextLines, settings, onAnswerUpdate);
+          const res = await this.executeLLMRequest(cleanQ, contextLines, settings, onAnswerUpdate, lens);
           resolve(res);
         }, settings.llmDebounceMs);
       });
     }
 
-    return this.executeLLMRequest(cleanQ, contextLines, settings, onAnswerUpdate);
+    return this.executeLLMRequest(cleanQ, contextLines, settings, onAnswerUpdate, lens);
   }
 
   private async executeLLMRequest(
     question: string,
     contextLines: string[],
     settings: AppSettings,
-    onAnswerUpdate: (answer: CopilotAnswer) => void
+    onAnswerUpdate: (answer: CopilotAnswer) => void,
+    lens?: CopilotLens
   ): Promise<boolean> {
     // Cancel obsolete previous generation
     this.cancelActive();
@@ -125,6 +127,7 @@ export class ClientLLMRequestScheduler {
     this.activeAbortController = new AbortController();
     const signal = this.activeAbortController.signal;
 
+    const selectedLens: CopilotLens = lens || settings.activeCopilotLens || 'WhatShouldISay';
     const answerId = Date.now().toString();
     const startTime = performance.now();
     let firstTokenReceived = false;
@@ -141,6 +144,7 @@ export class ClientLLMRequestScheduler {
       answer: '',
       timestamp: new Date().toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit' }),
       isStreaming: true,
+      lens: selectedLens,
     });
 
     try {
@@ -151,8 +155,13 @@ export class ClientLLMRequestScheduler {
         body: JSON.stringify({
           question,
           context: contextLines.slice(-5),
+          myRole: settings.myRole,
+          counterpartRole: settings.counterpartRole,
+          meetingGoal: settings.meetingGoal,
+          meetingType: settings.meetingType,
+          lens: selectedLens,
           candidateProfile: {
-            role: settings.candidateRole,
+            role: settings.myRole || settings.candidateRole,
             skills: settings.candidateSkills,
             experience: settings.candidateExperience,
             projects: settings.candidateProjects,

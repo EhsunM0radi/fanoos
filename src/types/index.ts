@@ -25,6 +25,13 @@ export interface AudioDevice {
   isDefault: boolean;
 }
 
+export type CopilotLens = 
+  | 'WhatShouldISay'       // "What should I say?" exact spoken phrasing & reply
+  | 'FollowUp'             // Strategic follow-up questions & talking points
+  | 'TechnicalAdvice'      // Deep technical breakdown & validation
+  | 'Negotiation'          // Diplomatic framing, objection handling & pushback
+  | 'Summary';             // Key decisions & immediate action items
+
 export interface CandidateProfile {
   name: string;
   experience: string;
@@ -54,9 +61,14 @@ export interface AppSettings {
   smartFormatting: boolean;
   endpointingMs: number;
 
-  // Audio Settings
+  // Audio Settings (Dual Channel: Local Mic & Remote Counterpart System Audio)
   selectedDeviceId: string;
+  selectedSystemDeviceId: string;
   captureMode: 'Microphone' | 'SystemAudio' | 'Combined';
+  micVolume: number; // 0 - 150%
+  systemAudioVolume: number; // 0 - 150%
+  micMuted: boolean;
+  systemAudioMuted: boolean;
 
   // Overlay Settings
   overlayOpacity: number;
@@ -64,6 +76,14 @@ export interface AppSettings {
   alwaysOnTop: boolean;
   autoScrollToBottom: boolean;
   theme: 'light' | 'dark';
+
+  // Meeting Context & Dynamic Roles (New General Meeting Support)
+  meetingType: 'job_interview' | 'client_meeting' | 'team_sync' | 'negotiation' | 'architecture_review' | 'custom';
+  myRole: string;
+  counterpartRole: string;
+  meetingGoal: string;
+  transcriptDisplayMode: 'compact' | 'full' | 'hidden'; // 'compact' shows only the latest line subtly
+  activeCopilotLens: CopilotLens;
 
   // LLM Engine Settings (Sections 15-30)
   llmProvider: 'DeepSeek' | 'Gemini' | 'OpenAI' | 'OpenRouter';
@@ -80,7 +100,7 @@ export interface AppSettings {
   llmTemperature: number;
   llmAnswerStyle: 'Concise' | 'Natural' | 'Detailed';
 
-  // Candidate Profile (Section 21)
+  // Candidate/User Profile
   candidateName: string;
   candidateRole: string;
   candidateExperience: string;
@@ -105,6 +125,7 @@ export interface CopilotAnswer {
   answer: string;
   timestamp: string;
   isStreaming: boolean;
+  lens?: CopilotLens;
 }
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';

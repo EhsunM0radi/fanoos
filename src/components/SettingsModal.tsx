@@ -17,9 +17,17 @@ import {
   Clock,
   RotateCcw,
   Sun,
-  Moon
+  Moon,
+  Users,
+  Briefcase,
+  Target,
+  MessageSquare,
+  Handshake,
+  ClipboardList,
+  Eye,
+  EyeOff
 } from 'lucide-react';
-import { AppSettings, LLMSessionMetrics } from '../types';
+import { AppSettings, LLMSessionMetrics, CopilotLens } from '../types';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -47,7 +55,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onResetMetrics,
 }) => {
   const [formData, setFormData] = useState<AppSettings>({ ...settings });
-  const [activeTab, setActiveTab] = useState<'speech' | 'llm' | 'audio' | 'overlay' | 'privacy'>('speech');
+  const [activeTab, setActiveTab] = useState<'meeting' | 'llm' | 'speech' | 'audio' | 'overlay' | 'privacy'>('meeting');
   const [testResult, setTestResult] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -74,6 +82,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose();
   };
 
+  // Meeting Preset Applier
+  const handleApplyPreset = (preset: AppSettings['meetingType']) => {
+    switch (preset) {
+      case 'job_interview':
+        setFormData({
+          ...formData,
+          meetingType: 'job_interview',
+          myRole: formData.candidateRole || 'Senior Backend Engineer',
+          counterpartRole: 'CTO / Technical Hiring Manager',
+          meetingGoal: 'Demonstrate deep architecture knowledge, leadership, and STAR methodology',
+          activeCopilotLens: 'WhatShouldISay',
+        });
+        break;
+      case 'client_meeting':
+        setFormData({
+          ...formData,
+          meetingType: 'client_meeting',
+          myRole: 'Lead Technical Consultant',
+          counterpartRole: 'Client Project Sponsor / VP of Product',
+          meetingGoal: 'Scope requirements, validate feasibility, and build trust in delivery timelines',
+          activeCopilotLens: 'FollowUp',
+        });
+        break;
+      case 'negotiation':
+        setFormData({
+          ...formData,
+          meetingType: 'negotiation',
+          myRole: 'Principal Contractor / Specialist',
+          counterpartRole: 'Procurement Director / Client Negotiator',
+          meetingGoal: 'Defend rate and scope boundaries, address cost pushbacks, and reach mutual sign-off',
+          activeCopilotLens: 'Negotiation',
+        });
+        break;
+      case 'architecture_review':
+        setFormData({
+          ...formData,
+          meetingType: 'architecture_review',
+          myRole: 'System Architect',
+          counterpartRole: 'Peer Engineering Leads / Security Reviewer',
+          meetingGoal: 'Review microservice decoupling, throughput bottlenecks, and disaster recovery',
+          activeCopilotLens: 'TechnicalAdvice',
+        });
+        break;
+      case 'team_sync':
+        setFormData({
+          ...formData,
+          meetingType: 'team_sync',
+          myRole: 'Tech Lead',
+          counterpartRole: 'Product Manager & Team Engineers',
+          meetingGoal: 'Unblock sprint dependencies, agree on action items, and maintain alignment',
+          activeCopilotLens: 'Summary',
+        });
+        break;
+      case 'custom':
+      default:
+        setFormData({
+          ...formData,
+          meetingType: 'custom',
+        });
+        break;
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col text-slate-100 max-h-[92vh]">
@@ -93,16 +164,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Tab Navigation */}
         <div className="flex items-center border-b border-slate-800 px-4 bg-slate-950/40 text-xs overflow-x-auto">
+          {/* TAB: Meeting & Roles (Premier Tab) */}
           <button
-            onClick={() => setActiveTab('speech')}
+            onClick={() => setActiveTab('meeting')}
             className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
-              activeTab === 'speech'
-                ? 'border-blue-500 text-blue-400'
+              activeTab === 'meeting'
+                ? 'border-blue-500 text-blue-400 font-semibold'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Radio size={13} />
-            <span>Speech (STT)</span>
+            <Users size={13} className="text-blue-400" />
+            <span>Meeting &amp; Roles</span>
           </button>
 
           <button
@@ -115,6 +187,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Sparkles size={13} className="text-purple-400" />
             <span>LLM Copilot</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('speech')}
+            className={`px-3 py-2.5 font-medium border-b-2 transition-colors flex items-center gap-1.5 shrink-0 ${
+              activeTab === 'speech'
+                ? 'border-blue-500 text-blue-400'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Radio size={13} />
+            <span>Speech (STT)</span>
           </button>
 
           <button
@@ -138,7 +222,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             }`}
           >
             <Layers size={13} />
-            <span>Overlay</span>
+            <span>Overlay &amp; Display</span>
           </button>
 
           <button
@@ -156,7 +240,174 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
         {/* Tab Content */}
         <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs">
-          {/* TAB 1: SPEECH */}
+          {/* TAB: MEETING & ROLES (General Meeting Paradigm) */}
+          {activeTab === 'meeting' && (
+            <div className="space-y-4">
+              <div className="p-3 rounded-lg bg-blue-950/40 border border-blue-800/40 text-blue-200 text-[11px] leading-relaxed">
+                🤝 <strong>Flexible Meeting Copilot:</strong> Define your role, the other party's role, and the meeting goal. The AI adapts all live follow-ups, advice, and spoken responses to your exact situation.
+              </div>
+
+              {/* Quick Presets */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-2">Meeting Type Presets (الگوهای آماده جلسه):</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('job_interview')}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      formData.meetingType === 'job_interview'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Technical Interview</span>
+                    <span className="text-[10px] text-slate-500">مصاحبه شغلی فنی</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('client_meeting')}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      formData.meetingType === 'client_meeting'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Client Pitch / Scope</span>
+                    <span className="text-[10px] text-slate-500">جلسه با کارفرما یا مشتری</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('negotiation')}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      formData.meetingType === 'negotiation'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Contract Negotiation</span>
+                    <span className="text-[10px] text-slate-500">مذاکره قرارداد یا قیمت</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('architecture_review')}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      formData.meetingType === 'architecture_review'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Architecture Review</span>
+                    <span className="text-[10px] text-slate-500">بررسی معماری سیستم</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('team_sync')}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      formData.meetingType === 'team_sync'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Team Sync / 1-on-1</span>
+                    <span className="text-[10px] text-slate-500">جلسه تیمی و مدیر محصول</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleApplyPreset('custom')}
+                    className={`p-2 rounded-lg border text-left transition-all ${
+                      formData.meetingType === 'custom'
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-200 ring-1 ring-blue-500/50'
+                        : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    <span className="font-bold block text-xs">Custom Meeting</span>
+                    <span className="text-[10px] text-slate-500">جلسه سفارشی دلخواه</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Roles Inputs */}
+              <div className="p-3.5 rounded-lg bg-slate-950/70 border border-slate-800 space-y-3">
+                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-1.5">
+                  <Briefcase size={13} className="text-blue-400" />
+                  <span>Role Definitions (تعریف نقش‌ها)</span>
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-1">My Role (نقش من در جلسه):</label>
+                    <input
+                      type="text"
+                      value={formData.myRole}
+                      onChange={(e) => setFormData({ ...formData, myRole: e.target.value })}
+                      placeholder="e.g. Senior Backend Dev, Technical Lead, Freelancer"
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-slate-400 text-[10px] mb-1">Counterpart's Role (نقش طرف مقابل):</label>
+                    <input
+                      type="text"
+                      value={formData.counterpartRole}
+                      onChange={(e) => setFormData({ ...formData, counterpartRole: e.target.value })}
+                      placeholder="e.g. CTO, Client Sponsor, HR Director, Product Owner"
+                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-400 text-[10px] mb-1">Meeting Goal &amp; Context (هدف و موضوع کلیدی جلسه):</label>
+                  <input
+                    type="text"
+                    value={formData.meetingGoal}
+                    onChange={(e) => setFormData({ ...formData, meetingGoal: e.target.value })}
+                    placeholder="e.g. Agree on architecture deliverables, negotiate contract scope, pass interview"
+                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Default Copilot Lens & Transcript Mode */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Default Copilot Lens (حالت پیش‌فرض دستیار):</label>
+                  <select
+                    value={formData.activeCopilotLens}
+                    onChange={(e) => setFormData({ ...formData, activeCopilotLens: e.target.value as CopilotLens })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="WhatShouldISay">💬 What Should I Say? (چی بگم الان؟)</option>
+                    <option value="FollowUp">🎯 Follow-Up Questions (سوالات استراتژیک)</option>
+                    <option value="TechnicalAdvice">⚡ Technical Advice (راهنمایی فنی)</option>
+                    <option value="Negotiation">🤝 Negotiation &amp; Objection (مذاکره و دیپلماسی)</option>
+                    <option value="Summary">📋 Action Items (جمع‌بندی و تسک‌ها)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">Transcript View in Overlay (نمایش رونوشت):</label>
+                  <select
+                    value={formData.transcriptDisplayMode}
+                    onChange={(e) => setFormData({ ...formData, transcriptDisplayMode: e.target.value as any })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-slate-200 text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="compact">Discreet Subtitle (فقط تیکه آخر، ظریف و کم‌دید - پیش‌فرض)</option>
+                    <option value="full">Full Transcript History (تاریخچه کامل قابل اسکرول)</option>
+                    <option value="hidden">Hidden (مخفی کامل - فقط نمایش راهنمایی‌های هوش مصنوعی)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: SPEECH (STT) */}
           {activeTab === 'speech' && (
             <div className="space-y-4">
               <div>
@@ -227,11 +478,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 2: LLM COPILOT (Sections 15-30) */}
+          {/* TAB: LLM COPILOT */}
           {activeTab === 'llm' && (
             <div className="space-y-4">
               <div className="p-3 rounded bg-purple-950/40 border border-purple-800/40 text-purple-200 text-[11px] leading-relaxed">
-                🤖 <strong>Controlled Event-Driven LLM Triggering:</strong> The assistant strictly avoids calling the LLM on every interim STT update. It enforces local rate limits, question boundary detection, debouncing, and bounded context windows.
+                🤖 <strong>Controlled Event-Driven LLM Triggering:</strong> Enforces local rate limits, question boundary detection, debouncing, and bounded context windows.
               </div>
 
               {/* Provider & Model */}
@@ -352,8 +603,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                       className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs"
                     >
                       <option value="Concise">Concise (Bullet talking points)</option>
-                      <option value="Natural">Natural (STAR conversational)</option>
-                      <option value="Detailed">Detailed (Deep technical breakdown)</option>
+                      <option value="Natural">Natural (Conversational flow)</option>
+                      <option value="Detailed">Detailed (Deep breakdown)</option>
                     </select>
                   </div>
 
@@ -372,43 +623,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              {/* Candidate Profile (Section 21) */}
-              <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 space-y-2.5">
-                <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-1.5">
-                  <User size={13} className="text-blue-400" />
-                  <span>Candidate Profile (Context Injection)</span>
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-slate-400 text-[10px] mb-0.5">Target Role:</label>
-                    <input
-                      type="text"
-                      value={formData.candidateRole}
-                      onChange={(e) => setFormData({ ...formData, candidateRole: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-slate-200 text-xs"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-slate-400 text-[10px] mb-0.5">Key Skills:</label>
-                    <input
-                      type="text"
-                      value={formData.candidateSkills}
-                      onChange={(e) => setFormData({ ...formData, candidateSkills: e.target.value })}
-                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-slate-200 text-xs"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Session Metrics & Cost (Sections 24-26) */}
+              {/* Session Metrics & Cost */}
               {sessionMetrics && (
                 <div className="p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/40 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
                       <DollarSign size={13} />
-                      <span>Live Session Metrics &amp; Cost Estimation</span>
+                      <span>Live Session Metrics</span>
                     </span>
                     {onResetMetrics && (
                       <button
@@ -453,7 +674,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: AUDIO */}
+          {/* TAB: AUDIO */}
           {activeTab === 'audio' && (
             <div className="space-y-4">
               <div>
@@ -463,8 +684,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, captureMode: e.target.value as any })}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-slate-200 focus:outline-none focus:border-blue-500 text-xs"
                 >
-                  <option value="Microphone">Microphone (Recommended for candidate speech)</option>
-                  <option value="SystemAudio">System Audio (Loopback for interviewer audio)</option>
+                  <option value="Microphone">Microphone (Recommended for speaking)</option>
+                  <option value="SystemAudio">System Audio (Loopback for other speaker)</option>
                   <option value="Combined">Combined (Microphone + System Audio)</option>
                 </select>
               </div>
@@ -478,7 +699,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 4: OVERLAY */}
+          {/* TAB: OVERLAY & DISPLAY */}
           {activeTab === 'overlay' && (
             <div className="space-y-4">
               <div>
@@ -583,11 +804,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 5: PRIVACY */}
+          {/* TAB: PRIVACY */}
           {activeTab === 'privacy' && (
             <div className="space-y-3">
               <div className="p-3 rounded bg-blue-950/40 border border-blue-800/40 text-blue-200 text-[11px] leading-relaxed">
-                🛡️ <strong>Zero Data Retention Policy:</strong> By default, the application does not record or persist audio or transcripts to disk. Data is kept in transient memory and discarded immediately upon stopping.
+                🛡️ <strong>Zero Data Retention Policy:</strong> Data is kept in transient memory and discarded immediately upon stopping.
               </div>
 
               <div className="space-y-3 pt-2">
